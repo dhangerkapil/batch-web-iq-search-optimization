@@ -1,6 +1,6 @@
 # 09 - Results on the sample
 
-Six batch jobs ran the same 23 records ([samples/brand-owner/records.jsonl](../samples/brand-owner/records.jsonl)) on Global Batch deployments in East US 2 on 31 October 2026. They're priced at the list prices of 31 October 2026, saved in [tests/fixtures/prices-2026-10-31.json](../tests/fixtures/prices-2026-10-31.json), and scored against [labels.jsonl](../samples/brand-owner/labels.jsonl). Every number here comes from the files in [results/2026-10-31](../results/2026-10-31/): one folder per run with `run.json` (settings, plan, forecasts, actual usage and cost), `results.jsonl` (one decision per record) and `metrics.jsonl` (per-line usage), plus [evaluation.md](../results/2026-10-31/evaluation.md).
+Six batch jobs ran the same 23 records ([samples/brand-owner/records.jsonl](../samples/brand-owner/records.jsonl)) on Global Batch deployments in East US 2 on 31 October 2026. They're priced at the list prices of 31 October 2026, saved in [tests/fixtures/prices-2026-10-31.json](../tests/fixtures/prices-2026-10-31.json), and scored against [labels.jsonl](../samples/brand-owner/labels.jsonl). Every number in the tables of those runs comes from the files in [results/2026-10-31](../results/2026-10-31/): one folder per run with `run.json` (settings, plan, forecasts, actual usage and cost), `results.jsonl` (one decision per record) and `metrics.jsonl` (per-line usage), plus [evaluation.md](../results/2026-10-31/evaluation.md). [Speed](#speed) and [the one-command runs of 2 November](#the-one-command-runs-live-2-november-2026) say where their numbers come from.
 
 **Twenty-three records show cost mechanics. They're too few to rank accuracy**: one record is about 4 points of record accuracy. Treat the accuracy columns as "no worse on this set", not as a benchmark.
 
@@ -50,6 +50,33 @@ What these show:
 - **The output assumption caused most of the gap.** It was 650 tokens per record; the runs used 278-336. [04](04-cost-model.md#forecasts-against-actual-cost) shows the effect of the updated defaults.
 - **The web-search runs have no forecast**: the model decided their search count.
 
+## Speed
+
+**On Global Batch, the batch scheduler sets the job time, not the search design.** Every run above took 7.1-9.4 minutes from creation to completion, whatever its design, and so did the one-command runs of 2 November ([below](#the-one-command-runs-live-2-november-2026)). On Batch, Web IQ saves cost, not time.
+
+**Where each record is a request you wait for, the design shows.** The first 5 sample records on gpt-6-sol with Flex processing, 2 requests at a time, 2 November 2026:
+
+| Flex run | Seconds per request, median (mean) | Before the first request |
+| --- | --- | --- |
+| With web search (option 1's lines) | 6.3 (9.8) | - |
+| With Web IQ evidence (option 2's lines) | 4.1 (5.1) | Stage 1: 6 searches in 8.8 seconds |
+
+Five records are too few to size the difference. On another workload, 37 records on the same model measured a median of 7.4 seconds per request with web search and 3.0 with Web IQ evidence.
+
+**One search.** Measured on 2 November 2026 from a laptop over the internet against test resources in East US 2, with 35 queries of another workload, each sent through every route in a random order, one call at a time. These are medians. From a host in Azure the times will differ; the differences between routes are the finding.
+
+| Route | Time per search | Against one built-in web search |
+| --- | --- | --- |
+| Built-in web search: the time one search adds to a response (gpt-6-sol, one forced search, paired with the same request without the tool) | 1.98 and 2.17 seconds (two runs) | - |
+| Web IQ through a Foundry toolbox, connection kept open | 0.42-0.43 seconds | 78-80% less time, 4.6-5 times faster |
+| Web IQ through a Foundry toolbox, reconnecting after 6 or more idle seconds | 1.60-1.88 seconds | 14-26% less |
+| Web IQ REST API | 0.13-0.22 seconds | 90-94% less |
+
+- **The toolbox adds about 0.3 seconds per search** with its connection open. Web IQ's own MCP server, called directly with the key, answered as fast as REST, so the extra time is the Foundry hop. Starting a toolbox session took about 0.5 seconds, once per run.
+- **Keep the connection open.** With the HTTP client's default keep-alive of 5 seconds, every toolbox call after 6 or more idle seconds opened a new connection. With 120 seconds, 10 of 10 such calls took 0.38-0.49 seconds. The code keeps idle connections for 120 seconds (`[webiq] keepalive_seconds`).
+- **A short burst still opens a connection for each search in flight**, because the client sends up to 5 at a time over HTTP/1.1. The 6 searches of each 2 November run averaged 1.5-1.6 seconds. In a long job, the connections are reused.
+- **Each built-in search also added about 8,140 input tokens** to the response in that test. That's why the web-search runs above read 8,713-10,230 input tokens per record, against 3,534-3,731 with planned search.
+
 ## Where each design went wrong
 
 | Record | Expected | Web search, mini | Bounded, mini | Two-stage full, mini | Two-stage lean, mini | Web search, gpt-5.4 | Two-stage lean, gpt-5.4 |
@@ -71,6 +98,23 @@ Reading the misses (`results.jsonl` in each run holds the model's own finding fo
 - **The lean rule** (R10, lean runs). As intended, the rule told the model to assume a brand whose name contains its owner's name belongs to that owner. Nestlé sold Pure Life in the US in 2021, so the rule is wrong for this record. A cheap plan with a known blind spot needs business sign-off.
 - **Mixed evidence** (R10, full plan and model-driven web search). The full plan's brand search returned pages describing the US rights as licensed alongside the sale, and the model applied the rule that licensees aren't owners. Model-driven web search on gpt-5.4 found Nestlé's announcement that the sale had closed and still concluded Nestlé owns the brand in the US. Nestlé's own press release lists Pure Life among the brands sold ([labels](../samples/brand-owner/labels.jsonl)). A market-specific template or a "prefer primary sources" rule are the fixes to test. Only the bounded run got R10 right.
 - **Name confusion** (R22, gpt-5.4-mini two-stage). The model treated results about Microsoft's fictitious "Contoso" as evidence about "Contoso Beverages Ltd" and suggested a US headquarters (the published `suggested_value`; its finding text was removed with the other fictional-record text). R23, with the same headquarters evidence, was answered correctly, and gpt-5.4 got both right. A name-matching rule ("a different full name is a different company") is the fix to test.
+
+## The one-command runs, live (2 November 2026)
+
+Once each option ran a job to the end by itself, each one's command ran once on the first 5 sample records, from a fresh clone of this repository, with nothing done by hand until it ended:
+
+| Option | The one command | Model | Ended | Wall time | $ per 1,000 records (forecast) | Facts right (of 10) |
+| --- | --- | --- | --- | --- | --- | --- |
+| Option 1, bounded web search | `bounded_web_search.py run` | gpt-5.4-mini, Global Batch | done, exit code 0 | 9.5 minutes; the batch job 8.7 | 31.58; 2.0 billed requests per record | 10 |
+| Option 2, lean plan through a toolbox | `two_stage.py run --plan lean --max-cost 1` | gpt-5.4-mini, Global Batch | done, exit code 0 | 9.7 minutes; 6 searches in 9.1 seconds, the batch job 8.8 minutes | 10.22 (10.52) | 10 |
+| Flex with web search | `flex_job.py run --design bounded-web-search` | gpt-6-sol, Flex | done, exit code 0 | 0.5 minutes | 36.63 | 9 |
+| Flex with Web IQ | `flex_job.py run --design two-stage --plan lean --max-cost 1` | gpt-6-sol, Flex | done, exit code 0 | 0.4 minutes; 6 searches in 8.8 seconds | 13.87 (16.65) | 10 |
+
+- **Each command ran its job to the end:** search, forecast, send, wait, collect, price, clean up and results, with no `--retry-failed` and no second command. Each Batch run deleted its 2 service files.
+- **Running each command again** reported the job done and sent nothing.
+- **The miss:** Flex with web search answered R02's owner `insufficient_evidence` within its two-search budget, the behaviour described for option 1 under [Where each design went wrong](#where-each-design-went-wrong).
+- **What these runs didn't need:** a throttling wait, a full quota, a second round, a split job or a held record. Those paths are covered by the offline tests in [tests/](../tests/) only.
+- The toolbox was created for the runs and deleted after them: HTTP 204, then 404 on a read.
 
 ## What the sample doesn't show
 

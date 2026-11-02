@@ -7,9 +7,9 @@ Run either design on [Flex processing](https://learn.microsoft.com/en-us/azure/f
 | **Flex with web search** | `python flex_job.py run ... --design bounded-web-search` | [Option 1](../option-1-bounded-web-search/README.md)'s lines, sent one by one |
 | **Flex with Web IQ** | `python flex_job.py run ... --design two-stage` | Stage 1 is unchanged: [option 2](../option-2-two-stage-web-iq/README.md)'s Web IQ searches. Only stage 2 changes: its no-tools lines, sent one by one |
 
-**Not measured on the 23-record sample.** Live checks on 1 November 2026 ran both variants on the first 5 sample records, on gpt-6-sol in East US 2: once before this repository's folders were reorganized, and once after. Every line completed with no HTTP 429, and all 10 facts in each run matched the labels:
-- Flex with web search cost $36.68, then $36.41, per 1,000 records.
-- Flex with Web IQ cost $13.83, then $13.85, per 1,000 records, against forecasts of $16.64 and $16.65.
+**Not measured on the 23-record sample.** Live checks ran both variants on the first 5 sample records, on gpt-6-sol in East US 2: twice on 1 November 2026, before and after this repository's folders were reorganized, and once on 2 November with the one-command code, from a fresh clone. Every line completed with no HTTP 429. All 10 facts matched the labels in every run but one: on 2 November, Flex with web search answered R02's owner `insufficient_evidence` within its two-search budget.
+- Flex with web search cost $36.68, $36.41, then $36.63 per 1,000 records. On 2 November each request took a median of 6.3 seconds.
+- Flex with Web IQ cost $13.83, $13.85, then $13.87 per 1,000 records, against forecasts of $16.64, $16.65 and $16.65. On 2 November each request took a median of 4.1 seconds, after 6 searches in 8.8 seconds ([09](../docs/09-results-on-the-sample.md#speed)).
 
 Five records check that the code works end to end; they can't rank the variants or compare them with Batch.
 

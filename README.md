@@ -35,6 +35,8 @@ Why it's cheaper:
 - **Search count.** It fell from 2.5-2.9 billed requests to 1.13 (lean) or 1.26 (full) planned calls per record, because shared facts are searched once per job.
 - **Input size.** It's less than half, because trimmed evidence replaces the model's own search loop ([04](docs/04-cost-model.md)).
 
+**Speed.** On Global Batch, the batch scheduler sets the job time: every run on the sample took 7.1-9.4 minutes, whatever its design, so Web IQ saves cost, not time. A Web IQ search through a Foundry toolbox took about 0.4 seconds with its connection open, against about 2 seconds that a built-in web search adds to a response. So with Flex processing, where you wait for each record, Web IQ evidence made each request faster ([09](docs/09-results-on-the-sample.md#speed)).
+
 **Twenty-three records show the cost mechanics, not accuracy.** On this set, search-then-batch was no less accurate. [09](docs/09-results-on-the-sample.md#where-each-design-went-wrong) explains every miss, including a deliberate trap for the lean plan.
 
 ## Choose an option
@@ -140,7 +142,7 @@ Read in this order the first time:
 - **Storing Web IQ content.** The terms restrict storing content. This sample keeps evidence only for a job's duration; confirm that fits your use with your legal team ([06](docs/06-security-privacy-and-terms.md#web-iq-terms-storing-content)).
 - **Evidence age.** Evidence is minutes to hours old when the batch runs.
 - **Skip rules.** The lean plan's skip rule is a business decision with a known blind spot (R10 in the sample).
-- **Not tested:** Data Zone Batch, the Entra ID REST path, other models, a second pass for `insufficient_evidence` records, and jobs large enough to hit rate limits. Flex processing was checked live on 5 records only, not measured on the sample. The automatic rounds, split jobs, quota waits and exit codes are covered by offline tests only.
+- **Not tested:** Data Zone Batch, the Entra ID REST path, other models, a second pass for `insufficient_evidence` records, and jobs large enough to hit rate limits. Flex processing was checked live on 5 records only, not measured on the sample. Each option's one command ran live on 5 records on 2 November 2026 and finished with exit code 0 ([09](docs/09-results-on-the-sample.md#the-one-command-runs-live-2-november-2026)). Those runs needed no automatic round, quota wait, split job or held record, so those paths and the other exit codes are covered by offline tests only.
 
 ## Contributing
 

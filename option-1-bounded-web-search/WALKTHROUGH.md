@@ -39,7 +39,7 @@ It prints `Wrote 23 bounded-web-search lines to bounded.jsonl` and calls nothing
 3. [build_lines](../shared/pipeline.py#L204) calls [web_search_line](web_search_lines.py#L16) once per record:
    - [line 32](web_search_lines.py#L32) takes the prompts from the workload ([web_search_prompts](../shared/workloads/brand_owner.py#L119)): the task, the decision rules and a three-line search budget.
    - [Line 33](web_search_lines.py#L33) adds the current `web_search` tool, not `web_search_preview`, which Learn calls "supported but not recommended".
-   - [Line 44](web_search_lines.py#L44) sets `user_location` to the record's market ([user_country](../shared/workloads/brand_owner.py#L129)), to steer results to that market.
+   - [Line 44](web_search_lines.py#L44) sets `user_location` to the record's market ([user_country](../shared/workloads/brand_owner.py#L129)), to steer results to that market. Don't expect it to save cost or time: in a test on another workload it made no measurable difference to either ([03](../docs/03-options-compared.md#option-1---bound-the-built-in-web-search)).
    - [Line 45](web_search_lines.py#L45) sets `max_tool_calls`; the API ignores tool calls beyond it.
    - [Line 46](web_search_lines.py#L46) sets the reasoning effort; reasoning tokens are billed as output tokens.
    - [Line 47](web_search_lines.py#L47) adds the strict JSON schema ([output_format](../shared/workloads/brand_owner.py#L100)).

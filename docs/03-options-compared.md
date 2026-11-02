@@ -11,7 +11,7 @@ Measured rows ran the 23 sample records on gpt-5.4-mini Global Batch on 31 Octob
 | 0. Model-driven web search (the common starting point) | Nothing | $43.12 | 2.87 Bing requests | 42 | The model decides search spend; known only afterwards |
 | 1. Bounded web search ([folder](../option-1-bounded-web-search/README.md)) | Line settings only | $40.33 | 2.52 Bing requests | 42 | Still model-driven: the cap limits tool calls, not the requests inside them |
 | **2. Search-then-batch, two-stage with Web IQ ([folder](../option-2-two-stage-web-iq/README.md))** | A search stage before submitting; no tools in the batch | **$9.78** (lean plan), $10.49 (full plan) | 1.13 or 1.26 Web IQ calls, fixed before submitting | 44 | Search templates and decision rules decide quality; evidence storage terms; Web IQ has no SLA |
-| Flex processing, for option 1 or 2 ([folder](../flex-web-search-and-web-iq/README.md)) | Each line sent as one synchronous request with `service_tier: "flex"`, instead of one batch file | Not measured on the sample; two 5-record checks on gpt-6-sol: $36.41-$36.68 with web search, $13.83-$13.85 with Web IQ | As the option | - | Preview with no SLA; your client paces the requests; fewer models (not gpt-5.4) |
+| Flex processing, for option 1 or 2 ([folder](../flex-web-search-and-web-iq/README.md)) | Each line sent as one synchronous request with `service_tier: "flex"`, instead of one batch file | Not measured on the sample; three 5-record checks on gpt-6-sol: $36.41-$36.68 with web search, $13.83-$13.87 with Web IQ | As the option | - | Preview with no SLA; your client paces the requests; fewer models (not gpt-5.4) |
 | A. Web IQ as an MCP tool inside batch lines | Tool type in each line, plus a Web IQ resource | Not measured on the sample | Model-driven | - | A key in every line; nothing throttles the calls; not documented for batch |
 | B. Foundry Web IQ tool, called synchronously | A runner calls the Foundry project endpoint per record | Not measured on the sample | Model-driven | - | It isn't batch: Standard token rates unless Flex processing (preview) applies, and you run the runner |
 | C. Decide shared facts once (add-on to option 2) | Validate each shared fact once per job, then join | Not measured | Fewer | - | Output-join logic; depends on how much your records repeat |
@@ -19,6 +19,8 @@ Measured rows ran the 23 sample records on gpt-5.4-mini Global Batch on 31 Octob
 Options 1 and 2, and Flex for either, have a folder each in this repository, with a README, a step-by-step walkthrough and the code. A, B and C are alternatives we considered and didn't build.
 
 Twenty-three records show cost mechanics. They're too few to rank accuracy: a two-fact difference is within noise. Measure accuracy on your own labeled set ([08](08-evaluate-quality.md)).
+
+**Speed.** On Global Batch, the batch scheduler sets the job time: every run on the sample took 7.1-9.4 minutes, whatever its design, so Web IQ saves cost, not time. One Web IQ search through a Foundry toolbox took about 0.4 seconds with its connection open, against about 2 seconds that one built-in web search adds to a response. On Flex, where you wait for each record, that shows: on the first 5 sample records, each request took a median of 4.1 seconds with Web IQ evidence against 6.3 with web search ([09](09-results-on-the-sample.md#speed)).
 
 ## Option 1 - Bound the built-in web search
 
@@ -39,6 +41,7 @@ Also use the `web_search` tool type, not `web_search_preview`, which is "support
 - The cap limits tool-call items, not the requests inside each call: 1.48 call items per record still produced 2.52 billed requests.
 - A cap can only remove searches the model was making. A model that searches more by default leaves more to cut.
 - Two `owner_hq` facts came back `insufficient_evidence`: within the two-search budget, the model didn't find a page that stated the headquarters.
+- **The record's market in `user_location` changed neither cost nor speed measurably** in a separate test on 2 November 2026: 37 records of another workload, bounded lines on gpt-5.4 Global Batch, two runs with the country and two without. Billed requests per record were 2.68 and 2.73 with it and 2.81 and 2.41 without, and every run's median was 13 seconds per response: the two arms differed less than two runs of the same arm. Learn says the location refines search results ([Web search: control results by user location](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/web-search#control-results-by-user-location)), so the lines keep it.
 
 **When to choose it.** When you need a change this week with no new service, and `analyze` shows the model making many searches per line.
 
@@ -106,7 +109,7 @@ Flex processing (preview) runs a request at about half the Standard token price,
 - It supports fewer models: not gpt-5.4 or gpt-5.4-mini when we checked, so moving a job to Flex can also mean changing its model.
 - gpt-6-sol charges for prompt-cache writes, which a short no-tools prompt can pay for without reusing them.
 
-**What we measured.** Not measured on the 23-record sample. Two live checks on the first 5 records, before and after this repository's folders were reorganized, completed every line on gpt-6-sol: $36.68 and $36.41 per 1,000 records with bounded web search, and $13.83 and $13.85 with Web IQ.
+**What we measured.** Not measured on the 23-record sample. Three live checks on the first 5 records completed every line on gpt-6-sol: two on 1 November 2026, before and after this repository's folders were reorganized, and one on 2 November with the one-command code. They cost $36.68, $36.41 and $36.63 per 1,000 records with bounded web search, and $13.83, $13.85 and $13.87 with Web IQ. In the third, each request took a median of 6.3 seconds with web search and 4.1 with Web IQ evidence ([09](09-results-on-the-sample.md#speed)).
 
 ## Rejected alternatives
 
