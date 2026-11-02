@@ -1,0 +1,76 @@
+{
+  "tool_version": "0.1.0",
+  "label": "bounded-web-search-gpt54mini",
+  "design": "bounded-web-search",
+  "workload": "brand-owner",
+  "records_file": "records.jsonl",
+  "records": 23,
+  "deployment": "gpt-5.4-mini-batch",
+  "price_model": "gpt-5.4-mini",
+  "settings": {
+    "reasoning_effort": "low",
+    "max_output_tokens": 8000,
+    "max_tool_calls": 2
+  },
+  "started_at": "2026-10-31T05:48:43+00:00",
+  "prompt_tokens_before_search": 9527,
+  "batch": {
+    "status": "completed",
+    "created_at": "2026-10-31T05:48:52+00:00",
+    "completed_at": "2026-10-31T05:56:30+00:00",
+    "minutes_end_to_end": 7.6,
+    "minutes_in_progress": 5.4,
+    "request_counts": {
+      "total": 23,
+      "completed": 23,
+      "failed": 0
+    },
+    "errors": []
+  },
+  "actual": {
+    "records": 23,
+    "lines_with_usage": 23,
+    "lines_failed": 0,
+    "json_valid": 23,
+    "per_record_mean": {
+      "input_tokens": 10230.0,
+      "cached_tokens": 0.0,
+      "output_tokens": 530.0,
+      "reasoning_tokens": 354.3,
+      "web_search_requests": 2.52,
+      "web_search_calls": 1.48,
+      "webiq_calls": 0.0
+    },
+    "totals": {
+      "input_tokens": 235290,
+      "cached_tokens": 0,
+      "output_tokens": 12189,
+      "reasoning_tokens": 8149,
+      "web_search_requests": 58,
+      "web_search_calls": 34,
+      "webiq_calls": 0
+    },
+    "usd": {
+      "tokens_input": 0.088234,
+      "tokens_output": 0.027425,
+      "web_search": 0.812,
+      "webiq": 0.0,
+      "total": 0.927659
+    },
+    "usd_per_1000_records": 40.33,
+    "search_share_of_cost": 0.875,
+    "prices": {
+      "model": "gpt-5.4-mini",
+      "tier": "global_batch",
+      "source": "Azure Retail Prices API, eastus2, meters '5.4 mini Batch Inp/cd Inp/Opt Gl' and '5.4 mini Inp/cd Inp/Opt Gl', effective 2026-03-01"
+    }
+  },
+  "status": "done",
+  "finished_at": "2026-10-31T05:56:57+00:00",
+  "deleted": {
+    "service_files": 2,
+    "local_files": [
+      "batch-input.jsonl"
+    ]
+  }
+}

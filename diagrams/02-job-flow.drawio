@@ -1,0 +1,195 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram id="job-flow" name="One job through run">
+    <mxGraphModel dx="1920" dy="1200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1920" pageHeight="1200" background="#FFFFFF" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title" value="One job through two_stage.py run (option 2)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Segoe UI;fontSize=28;fontStyle=1;fontColor=#1F2937;spacingLeft=0;spacingRight=0;" vertex="1" parent="1">
+          <mxGeometry x="20" y="30" width="1000" height="44" as="geometry" />
+        </mxCell>
+
+        <mxCell id="note" value="Re-run the same command to resume after an interruption. &lt;br&gt;Finished searches are never repeated." style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#F3F4F6;strokeColor=#9CA3AF;strokeWidth=1;fontFamily=Segoe UI;fontSize=14;fontColor=#1F2937;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=16;" vertex="1" parent="1">
+          <mxGeometry x="1500" y="22" width="400" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="load" value="Load records" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#EAF2FA;strokeColor=#0F4C81;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;spacingLeft=12;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="20" y="130" width="420" height="72" as="geometry" />
+        </mxCell>
+
+        <mxCell id="plan" value="Build search plan (lean or full)" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#EAF2FA;strokeColor=#0F4C81;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;spacingLeft=12;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="20" y="250" width="420" height="72" as="geometry" />
+        </mxCell>
+
+        <mxCell id="fc1" value="Forecast 1 (estimated input tokens)" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#EAF2FA;strokeColor=#0F4C81;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;spacingLeft=12;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="20" y="370" width="420" height="72" as="geometry" />
+        </mxCell>
+
+        <mxCell id="gate1" value="Above --max-cost?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#EAF2FA;strokeColor=#0F4C81;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="90" y="490" width="280" height="112" as="geometry" />
+        </mxCell>
+
+        <mxCell id="stop1" value="&lt;font color=&quot;#C2410C&quot;&gt;&lt;b&gt;STOP&lt;/b&gt;&lt;/font&gt;&lt;br&gt;Nothing called" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#FFF1E6;strokeColor=#C2410C;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;spacingLeft=12;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="480" y="502" width="400" height="88" as="geometry" />
+        </mxCell>
+
+        <mxCell id="search" value="Run searches: rate-limited, retried with backoff, &lt;br&gt;each saved as it finishes" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#E6F4F3;strokeColor=#0E7C7B;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;spacingLeft=12;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="20" y="650" width="420" height="72" as="geometry" />
+        </mxCell>
+
+        <mxCell id="gate2" value="Any failed searches?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#EAF2FA;strokeColor=#0F4C81;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="90" y="770" width="280" height="112" as="geometry" />
+        </mxCell>
+
+        <mxCell id="stop2" value="&lt;font color=&quot;#C2410C&quot;&gt;&lt;b&gt;STOP&lt;/b&gt;&lt;/font&gt;&lt;br&gt;Nothing submitted; &lt;br&gt;re-run retries only the failed searches" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#FFF1E6;strokeColor=#C2410C;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;spacingLeft=12;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="480" y="782" width="400" height="88" as="geometry" />
+        </mxCell>
+
+        <mxCell id="batchfile" value="Build no-tools batch file &lt;br&gt;(evidence + rules + JSON schema)" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#EAF2FA;strokeColor=#0F4C81;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;spacingLeft=12;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="20" y="930" width="420" height="72" as="geometry" />
+        </mxCell>
+
+        <mxCell id="fc2" value="Forecast 2 (prompt text counted exactly)" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#EAF2FA;strokeColor=#0F4C81;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;spacingLeft=12;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="20" y="1050" width="420" height="72" as="geometry" />
+        </mxCell>
+
+        <mxCell id="gate3" value="Above --max-cost?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#EAF2FA;strokeColor=#0F4C81;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="1110" y="130" width="280" height="112" as="geometry" />
+        </mxCell>
+
+        <mxCell id="stop3" value="&lt;font color=&quot;#C2410C&quot;&gt;&lt;b&gt;STOP&lt;/b&gt;&lt;/font&gt;&lt;br&gt;Searches done; batch not submitted" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#FFF1E6;strokeColor=#C2410C;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;spacingLeft=12;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="1500" y="142" width="400" height="88" as="geometry" />
+        </mxCell>
+
+        <mxCell id="upload" value="Upload file (14-day expiry backstop) &lt;br&gt;and create batch job" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#EAF2FA;strokeColor=#0F4C81;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;spacingLeft=12;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="1040" y="290" width="420" height="72" as="geometry" />
+        </mxCell>
+
+        <mxCell id="wait" value="Wait: poll request_counts; warn if no progress" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#EAF2FA;strokeColor=#0F4C81;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;spacingLeft=12;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="1040" y="410" width="420" height="72" as="geometry" />
+        </mxCell>
+
+        <mxCell id="gate4" value="Batch completed?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#EAF2FA;strokeColor=#0F4C81;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="1110" y="530" width="280" height="112" as="geometry" />
+        </mxCell>
+
+        <mxCell id="stop4" value="Keep completed lines, evidence and batch file; &lt;br&gt;re-run resubmits only the other lines, &lt;br&gt;without searching again" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#FFF1E6;strokeColor=#C2410C;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;spacingLeft=12;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="1500" y="542" width="400" height="88" as="geometry" />
+        </mxCell>
+
+        <mxCell id="collect" value="Collect output and error files" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#EAF2FA;strokeColor=#0F4C81;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;spacingLeft=12;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="1040" y="690" width="420" height="72" as="geometry" />
+        </mxCell>
+
+        <mxCell id="write" value="Write results.jsonl and actual cost to run.json" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#EAF2FA;strokeColor=#0F4C81;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;spacingLeft=12;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="1040" y="810" width="420" height="72" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cleanup" value="Clean up: delete batch files in Azure OpenAI &lt;br&gt;and local evidence" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#EAF2FA;strokeColor=#0F4C81;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;spacingLeft=12;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="1040" y="930" width="420" height="72" as="geometry" />
+        </mxCell>
+
+        <mxCell id="done" value="Done" style="rounded=1;arcSize=50;whiteSpace=wrap;html=1;fillColor=#EAF2FA;strokeColor=#0F4C81;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontStyle=1;fontColor=#1F2937;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="1140" y="1050" width="220" height="56" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_load_plan" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4B5563;strokeWidth=2;endArrow=block;endFill=1;endSize=7;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="load" target="plan">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_plan_fc1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4B5563;strokeWidth=2;endArrow=block;endFill=1;endSize=7;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="plan" target="fc1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_fc1_gate1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4B5563;strokeWidth=2;endArrow=block;endFill=1;endSize=7;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="fc1" target="gate1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_gate1_stop1" value="yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;endSize=7;fontFamily=Segoe UI;fontSize=14;fontStyle=1;fontColor=#C2410C;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="gate1" target="stop1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="0" y="-17" as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="e_gate1_search" value="no" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4B5563;strokeWidth=2;endArrow=block;endFill=1;endSize=7;fontFamily=Segoe UI;fontSize=14;fontStyle=1;fontColor=#4B5563;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="gate1" target="search">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="22" y="0" as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="e_search_gate2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4B5563;strokeWidth=2;endArrow=block;endFill=1;endSize=7;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="search" target="gate2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_gate2_stop2" value="yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;endSize=7;fontFamily=Segoe UI;fontSize=14;fontStyle=1;fontColor=#C2410C;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="gate2" target="stop2">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="0" y="-17" as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="e_gate2_batchfile" value="no" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4B5563;strokeWidth=2;endArrow=block;endFill=1;endSize=7;fontFamily=Segoe UI;fontSize=14;fontStyle=1;fontColor=#4B5563;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="gate2" target="batchfile">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="22" y="0" as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="e_batchfile_fc2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4B5563;strokeWidth=2;endArrow=block;endFill=1;endSize=7;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="batchfile" target="fc2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_fc2_gate3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4B5563;strokeWidth=2;endArrow=block;endFill=1;endSize=7;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="fc2" target="gate3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="960" y="1086" />
+              <mxPoint x="960" y="186" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="e_gate3_stop3" value="yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;endSize=7;fontFamily=Segoe UI;fontSize=14;fontStyle=1;fontColor=#C2410C;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="gate3" target="stop3">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="0" y="-17" as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="e_gate3_upload" value="no" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4B5563;strokeWidth=2;endArrow=block;endFill=1;endSize=7;fontFamily=Segoe UI;fontSize=14;fontStyle=1;fontColor=#4B5563;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="gate3" target="upload">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="22" y="0" as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="e_upload_wait" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4B5563;strokeWidth=2;endArrow=block;endFill=1;endSize=7;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="upload" target="wait">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_wait_gate4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4B5563;strokeWidth=2;endArrow=block;endFill=1;endSize=7;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="wait" target="gate4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_gate4_stop4" value="no" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;endSize=7;fontFamily=Segoe UI;fontSize=14;fontStyle=1;fontColor=#C2410C;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="gate4" target="stop4">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="0" y="-17" as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="e_gate4_collect" value="yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4B5563;strokeWidth=2;endArrow=block;endFill=1;endSize=7;fontFamily=Segoe UI;fontSize=14;fontStyle=1;fontColor=#4B5563;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="gate4" target="collect">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="24" y="0" as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="e_collect_write" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4B5563;strokeWidth=2;endArrow=block;endFill=1;endSize=7;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="collect" target="write">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_write_cleanup" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4B5563;strokeWidth=2;endArrow=block;endFill=1;endSize=7;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="write" target="cleanup">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_cleanup_done" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4B5563;strokeWidth=2;endArrow=block;endFill=1;endSize=7;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="cleanup" target="done">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

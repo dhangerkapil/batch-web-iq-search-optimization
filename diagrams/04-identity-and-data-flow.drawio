@@ -1,0 +1,108 @@
+<mxfile host="app.diagrams.net">
+  <diagram id="identity-and-data-flow" name="Identities, endpoints and where data goes">
+    <mxGraphModel dx="1920" dy="726" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1920" pageHeight="736" background="#FFFFFF" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="Identities, endpoints and where data goes" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Segoe UI;fontSize=28;fontStyle=1;fontColor=#1F2937;spacingLeft=20;" vertex="1" parent="1">
+          <mxGeometry x="0" y="0" width="1878" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="host" value="&lt;b&gt;Pipeline host&lt;/b&gt;&lt;br&gt;(your machine, a VM, or an&lt;br&gt;Azure Container Apps job)&lt;br&gt;&lt;font color=&quot;#4B5563&quot; style=&quot;font-size: 14px;&quot;&gt;Managed identity or&lt;br&gt;Azure CLI sign-in&lt;/font&gt;" style="rounded=1;absoluteArcSize=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#EAF2FA;strokeColor=#0F4C81;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=left;verticalAlign=middle;spacingLeft=76;spacingRight=8;" vertex="1" parent="1">
+          <mxGeometry x="20" y="336" width="320" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="host-icon" value="" style="shape=image;html=1;aspect=fixed;image=img/lib/azure2/identity/Entra_Managed_Identities.svg;" vertex="1" parent="1">
+          <mxGeometry x="36" y="397" width="48" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="folder" value="&lt;b&gt;Local work folder:&lt;/b&gt;&lt;br&gt;evidence.jsonl and batch-input.jsonl&lt;br&gt;(deleted at the end);&lt;br&gt;results.jsonl and run.json (kept)" style="rounded=1;absoluteArcSize=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#F3F4F6;strokeColor=#6B7280;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=8;" vertex="1" parent="1">
+          <mxGeometry x="20" y="554" width="320" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="foundry" value="" style="rounded=1;absoluteArcSize=1;arcSize=8;html=1;container=1;collapsible=0;recursiveResize=0;fillColor=#EAF2FA;strokeColor=#0F4C81;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="700" y="112" width="500" height="166" as="geometry" />
+        </mxCell>
+        <mxCell id="foundry-icon" value="" style="shape=image;html=1;aspect=fixed;image=img/lib/azure2/ai_machine_learning/Foundry_Project.svg;" vertex="1" parent="foundry">
+          <mxGeometry x="16" y="10" width="44" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="foundry-title" value="Microsoft Foundry project" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Segoe UI;fontSize=16;fontStyle=1;fontColor=#1F2937;spacing=0;" vertex="1" parent="foundry">
+          <mxGeometry x="68" y="10" width="420" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="toolbox" value="&lt;b&gt;Toolbox&lt;/b&gt;&lt;br&gt;(MCP endpoint)" style="rounded=1;absoluteArcSize=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0F4C81;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;" vertex="1" parent="foundry">
+          <mxGeometry x="24" y="70" width="200" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="connection" value="&lt;b&gt;Project connection&lt;/b&gt;&lt;br&gt;(holds the Web IQ key)" style="rounded=1;absoluteArcSize=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0F4C81;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;" vertex="1" parent="foundry">
+          <mxGeometry x="276" y="70" width="200" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="foundry-role" value="Callers need Foundry User on the project" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;fontFamily=Segoe UI;fontSize=14;fontColor=#1F2937;spacing=0;" vertex="1" parent="1">
+          <mxGeometry x="700" y="286" width="500" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="boundary" value="" style="rounded=1;absoluteArcSize=1;arcSize=8;html=1;container=1;collapsible=0;recursiveResize=0;fillColor=none;strokeColor=#0E7C7B;strokeWidth=2;dashed=1;dashPattern=10 6;" vertex="1" parent="1">
+          <mxGeometry x="1460" y="112" width="400" height="268" as="geometry" />
+        </mxCell>
+        <mxCell id="boundary-label" value="Public internet - outside your Azure boundary" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Segoe UI;fontSize=16;fontStyle=1;fontColor=#0E7C7B;spacing=0;" vertex="1" parent="boundary">
+          <mxGeometry x="12" y="10" width="376" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="webiq" value="Microsoft Web IQ - api.microsoft.ai" style="rounded=1;absoluteArcSize=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#E6F4F3;strokeColor=#0E7C7B;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontStyle=1;fontColor=#1F2937;align=center;verticalAlign=middle;" vertex="1" parent="boundary">
+          <mxGeometry x="30" y="76" width="340" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="webiq-notes" value="Public endpoint only: no Private Link&lt;br&gt;Outside the DPA and EU Data Boundary&lt;br&gt;No SLA" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;fontFamily=Segoe UI;fontSize=14;fontColor=#C2410C;spacing=0;" vertex="1" parent="boundary">
+          <mxGeometry x="30" y="188" width="340" height="66" as="geometry" />
+        </mxCell>
+        <mxCell id="aoai" value="" style="rounded=1;absoluteArcSize=1;arcSize=8;html=1;container=1;collapsible=0;recursiveResize=0;fillColor=#EAF2FA;strokeColor=#0F4C81;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="700" y="440" width="500" height="166" as="geometry" />
+        </mxCell>
+        <mxCell id="aoai-icon" value="" style="shape=image;html=1;aspect=fixed;image=img/lib/azure2/ai_machine_learning/Azure_OpenAI.svg;" vertex="1" parent="aoai">
+          <mxGeometry x="16" y="10" width="44" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="aoai-title" value="Azure OpenAI account endpoint (Files + Batch API)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Segoe UI;fontSize=16;fontStyle=1;fontColor=#1F2937;spacing=0;" vertex="1" parent="aoai">
+          <mxGeometry x="68" y="10" width="420" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="deployment" value="&lt;b&gt;Global Batch deployment&lt;/b&gt;&lt;br&gt;(no tools)" style="rounded=1;absoluteArcSize=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0F4C81;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;" vertex="1" parent="aoai">
+          <mxGeometry x="90" y="70" width="320" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="aoai-role" value="Needs files and batches data actions, for example&lt;br&gt;Cognitive Services OpenAI Contributor" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;fontFamily=Segoe UI;fontSize=14;fontColor=#1F2937;spacing=0;" vertex="1" parent="1">
+          <mxGeometry x="700" y="614" width="400" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="filestore" value="&lt;b&gt;Azure OpenAI file store:&lt;/b&gt;&lt;br&gt;batch input and output files&lt;br&gt;(deleted at the end; 14-day expiry backstop)" style="rounded=1;absoluteArcSize=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#F3F4F6;strokeColor=#6B7280;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=8;" vertex="1" parent="1">
+          <mxGeometry x="1460" y="440" width="400" height="166" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-host-folder" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4B5563;strokeWidth=2;endArrow=block;endFill=1;endSize=8;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="host" target="folder">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-aoai-store" value="input and output files" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4B5563;strokeWidth=2;endArrow=block;endFill=1;endSize=8;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontFamily=Segoe UI;fontSize=14;fontColor=#1F2937;labelBackgroundColor=#FFFFFF;whiteSpace=wrap;align=center;verticalAlign=middle;" edge="1" parent="1" source="aoai" target="filestore">
+          <mxGeometry x="1" width="150" relative="1" as="geometry">
+            <mxPoint x="-130" y="-18" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-tool-conn" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4B5563;strokeWidth=2;endArrow=block;endFill=1;endSize=8;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="foundry" source="toolbox" target="connection">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-a" value="Entra ID token, scope https://ai.azure.com/.default" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4B5563;strokeWidth=2;endArrow=block;endFill=1;endSize=8;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontFamily=Segoe UI;fontSize=14;fontColor=#1F2937;labelBackgroundColor=#FFFFFF;whiteSpace=wrap;align=center;verticalAlign=middle;" edge="1" parent="1" source="host" target="toolbox">
+          <mxGeometry x="1" width="210" relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="180" y="218" />
+            </Array>
+            <mxPoint x="-204" y="-27" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-conn-webiq" value="x-apikey from the connection" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4B5563;strokeWidth=2;endArrow=block;endFill=1;endSize=8;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;fontFamily=Segoe UI;fontSize=14;fontColor=#1F2937;labelBackgroundColor=#FFFFFF;whiteSpace=wrap;align=center;verticalAlign=middle;" edge="1" parent="1" source="connection" target="webiq">
+          <mxGeometry x="1" width="210" relative="1" as="geometry">
+            <mxPoint x="-160" y="-18" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-b" value="Alternative: Entra ID app token (https://api.microsoft.ai/.default) or x-apikey" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4B5563;strokeWidth=2;dashed=1;dashPattern=4 3;endArrow=block;endFill=1;endSize=8;exitX=1;exitY=0.17647;exitDx=0;exitDy=0;entryX=0;entryY=0.7;entryDx=0;entryDy=0;fontFamily=Segoe UI;fontSize=14;fontColor=#1F2937;labelBackgroundColor=#FFFFFF;whiteSpace=wrap;align=center;verticalAlign=middle;" edge="1" parent="1" source="host" target="webiq">
+          <mxGeometry x="-1" width="520" relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1330" y="366" />
+              <mxPoint x="1330" y="258" />
+            </Array>
+            <mxPoint x="610" y="18" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-c" value="Entra ID token, scope https://cognitiveservices.azure.com/.default" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4B5563;strokeWidth=2;endArrow=block;endFill=1;endSize=8;exitX=1;exitY=0.81765;exitDx=0;exitDy=0;entryX=0;entryY=0.21084;entryDx=0;entryDy=0;fontFamily=Segoe UI;fontSize=14;fontColor=#1F2937;labelBackgroundColor=#FFFFFF;whiteSpace=wrap;align=center;verticalAlign=middle;" edge="1" parent="1" source="host" target="aoai">
+          <mxGeometry x="1" width="300" relative="1" as="geometry">
+            <mxPoint x="-180" y="-27" as="offset" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

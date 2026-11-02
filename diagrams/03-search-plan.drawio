@@ -1,0 +1,155 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram id="search-plan" name="How searches are planned and shared">
+    <mxGraphModel dx="1920" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1920" pageHeight="1000" background="#FFFFFF" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title" value="How searches are planned and shared" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Segoe UI;fontSize=28;fontStyle=1;fontColor=#1F2937;spacingLeft=0;spacingRight=0;" vertex="1" parent="1">
+          <mxGeometry x="20" y="30" width="1000" height="44" as="geometry" />
+        </mxCell>
+
+        <mxCell id="hdr_rec" value="&lt;b&gt;&lt;font color=&quot;#0F4C81&quot;&gt;Records&lt;/font&gt;&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:14px&quot; color=&quot;#4B5563&quot;&gt;Brand &#183; Market &#183; Claimed owner&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;spacingLeft=0;spacingRight=0;" vertex="1" parent="1">
+          <mxGeometry x="20" y="114" width="460" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="hdr_a" value="&lt;b&gt;&lt;font color=&quot;#0E7C7B&quot;&gt;Per-record searches:&lt;/font&gt;&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:14px&quot; color=&quot;#4B5563&quot;&gt;&amp;lt;brand&amp;gt; brand owner (region = market)&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;spacingLeft=0;spacingRight=0;" vertex="1" parent="1">
+          <mxGeometry x="554" y="114" width="410" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="hdr_b" value="&lt;b&gt;&lt;font color=&quot;#0E7C7B&quot;&gt;Shared searches:&lt;/font&gt;&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:14px&quot; color=&quot;#4B5563&quot;&gt;&amp;lt;owner&amp;gt; headquarters, once per job&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;spacingLeft=0;spacingRight=0;" vertex="1" parent="1">
+          <mxGeometry x="1068" y="114" width="372" height="48" as="geometry" />
+        </mxCell>
+
+        <mxCell id="band_pep" value="" style="rounded=1;absoluteArcSize=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F9FAFB;strokeColor=#9CA3AF;strokeWidth=1;" vertex="1" parent="1">
+          <mxGeometry x="20" y="204" width="958" height="300" as="geometry" />
+        </mxCell>
+        <mxCell id="band_cc" value="" style="rounded=1;absoluteArcSize=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F9FAFB;strokeColor=#9CA3AF;strokeWidth=1;" vertex="1" parent="1">
+          <mxGeometry x="20" y="544" width="958" height="196" as="geometry" />
+        </mxCell>
+        <mxCell id="band_uni" value="" style="rounded=1;absoluteArcSize=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#F9FAFB;strokeColor=#9CA3AF;strokeWidth=1;" vertex="1" parent="1">
+          <mxGeometry x="20" y="780" width="958" height="92" as="geometry" />
+        </mxCell>
+
+        <mxCell id="rec1" value="&lt;b&gt;Gatorade&lt;/b&gt; &#183; US &#183; PepsiCo, Inc." style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#EAF2FA;strokeColor=#0F4C81;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;spacingLeft=12;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="34" y="218" width="460" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="rec2" value="&lt;b&gt;Lay's&lt;/b&gt; &#183; US &#183; PepsiCo, Inc." style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#EAF2FA;strokeColor=#0F4C81;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;spacingLeft=12;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="34" y="322" width="460" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="rec3" value="&lt;b&gt;Minute Maid&lt;/b&gt; &#183; US &#183; PepsiCo, Inc." style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#EAF2FA;strokeColor=#0F4C81;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;spacingLeft=12;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="34" y="426" width="460" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="rec4" value="&lt;b&gt;Sprite&lt;/b&gt; &#183; US &#183; The Coca-Cola Company" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#EAF2FA;strokeColor=#0F4C81;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;spacingLeft=12;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="34" y="558" width="460" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="rec5" value="&lt;b&gt;Coca-Cola Zero Sugar&lt;/b&gt; &#183; GB &#183; The Coca-Cola Company" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#EAF2FA;strokeColor=#0F4C81;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;spacingLeft=12;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="34" y="662" width="460" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="rec6" value="&lt;b&gt;Persil&lt;/b&gt; &#183; DE &#183; Unilever PLC" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#EAF2FA;strokeColor=#0F4C81;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;spacingLeft=12;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="34" y="794" width="460" height="64" as="geometry" />
+        </mxCell>
+
+        <mxCell id="sa1" value="Gatorade brand owner" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#E6F4F3;strokeColor=#0E7C7B;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;spacingLeft=12;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="554" y="218" width="410" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="sa2" value="Lay's brand owner" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#E6F4F3;strokeColor=#0E7C7B;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;spacingLeft=12;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="554" y="322" width="410" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="sa3" value="Minute Maid brand owner" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#E6F4F3;strokeColor=#0E7C7B;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;spacingLeft=12;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="554" y="426" width="410" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="sa4" value="Sprite brand owner" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#E6F4F3;strokeColor=#0E7C7B;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;spacingLeft=12;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="554" y="558" width="410" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="sa5" value="Coca-Cola Zero Sugar brand owner&lt;br&gt;&lt;font style=&quot;font-size:14px&quot; color=&quot;#C2410C&quot;&gt;skipped by the lean plan: name contains the owner&lt;/font&gt;" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#FFF1E6;strokeColor=#C2410C;strokeWidth=2;dashed=1;dashPattern=6 3;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;spacingLeft=12;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="554" y="662" width="410" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="sa6" value="Persil brand owner" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#E6F4F3;strokeColor=#0E7C7B;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;spacingLeft=12;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="554" y="794" width="410" height="64" as="geometry" />
+        </mxCell>
+
+        <mxCell id="sh_pep" value="PepsiCo, Inc. headquarters&lt;br&gt;&lt;font style=&quot;font-size:14px&quot;&gt;(used by 3 records)&lt;/font&gt;" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#E6F4F3;strokeColor=#0E7C7B;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;spacingLeft=12;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="1068" y="322" width="372" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="sh_cc" value="The Coca-Cola Company headquarters&lt;br&gt;&lt;font style=&quot;font-size:14px&quot;&gt;(used by 2 records)&lt;/font&gt;" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#E6F4F3;strokeColor=#0E7C7B;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;spacingLeft=12;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="1068" y="610" width="372" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="sh_uni" value="Unilever PLC headquarters&lt;br&gt;&lt;font style=&quot;font-size:14px&quot;&gt;(used by 1 record)&lt;/font&gt;" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#E6F4F3;strokeColor=#0E7C7B;strokeWidth=2;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=center;verticalAlign=middle;spacingLeft=12;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="1068" y="794" width="372" height="64" as="geometry" />
+        </mxCell>
+
+        <mxCell id="sum" value="&lt;b&gt;Searches for these 6 records&lt;/b&gt;&lt;br&gt;&lt;br&gt;Without sharing: &lt;b&gt;12&lt;/b&gt;&lt;br&gt;Full plan: &lt;b&gt;9&lt;/b&gt;&lt;br&gt;Lean plan: &lt;b&gt;8&lt;/b&gt;" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#F3F4F6;strokeColor=#9CA3AF;strokeWidth=1;fontFamily=Segoe UI;fontSize=16;fontColor=#1F2937;align=left;verticalAlign=middle;spacingLeft=20;spacingRight=16;" vertex="1" parent="1">
+          <mxGeometry x="1500" y="114" width="400" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="risk" value="Lean saves searches only if its business rule holds.&lt;br&gt;The sample includes a brand whose name contains a former owner (Nestle Pure Life in the US) to show the risk." style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFF1E6;strokeColor=#C2410C;strokeWidth=2;fontFamily=Segoe UI;fontSize=14;fontColor=#1F2937;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=16;" vertex="1" parent="1">
+          <mxGeometry x="1500" y="294" width="400" height="96" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ra1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4B5563;strokeWidth=2;endArrow=block;endFill=1;endSize=7;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="rec1" target="sa1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ra2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4B5563;strokeWidth=2;endArrow=block;endFill=1;endSize=7;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="rec2" target="sa2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ra3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4B5563;strokeWidth=2;endArrow=block;endFill=1;endSize=7;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="rec3" target="sa3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ra4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4B5563;strokeWidth=2;endArrow=block;endFill=1;endSize=7;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="rec4" target="sa4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ra5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4B5563;strokeWidth=2;endArrow=block;endFill=1;endSize=7;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="rec5" target="sa5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ra6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4B5563;strokeWidth=2;endArrow=block;endFill=1;endSize=7;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="rec6" target="sa6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="fi1" style="rounded=0;html=1;strokeColor=#9CA3AF;strokeWidth=1.5;endArrow=block;endFill=1;endSize=5;startArrow=oval;startFill=1;startSize=5;exitX=1;exitY=0.1533;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="band_pep" target="sh_pep">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1018" y="250" />
+                            <mxPoint x="1018" y="354" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fi2" style="rounded=0;html=1;strokeColor=#9CA3AF;strokeWidth=1.5;endArrow=block;endFill=1;endSize=5;startArrow=oval;startFill=1;startSize=5;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="band_pep" target="sh_pep">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1018" y="354" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fi3" style="rounded=0;html=1;strokeColor=#9CA3AF;strokeWidth=1.5;endArrow=block;endFill=1;endSize=5;startArrow=oval;startFill=1;startSize=5;exitX=1;exitY=0.8467;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="band_pep" target="sh_pep">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1018" y="458" />
+                            <mxPoint x="1018" y="354" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fi4" style="rounded=0;html=1;strokeColor=#9CA3AF;strokeWidth=1.5;endArrow=block;endFill=1;endSize=5;startArrow=oval;startFill=1;startSize=5;exitX=1;exitY=0.2347;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="band_cc" target="sh_cc">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1018" y="590" />
+                            <mxPoint x="1018" y="642" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fi5" style="rounded=0;html=1;strokeColor=#9CA3AF;strokeWidth=1.5;endArrow=block;endFill=1;endSize=5;startArrow=oval;startFill=1;startSize=5;exitX=1;exitY=0.7653;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="band_cc" target="sh_cc">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1018" y="694" />
+                            <mxPoint x="1018" y="642" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fi6" style="rounded=0;html=1;strokeColor=#9CA3AF;strokeWidth=1.5;endArrow=block;endFill=1;endSize=5;startArrow=oval;startFill=1;startSize=5;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="band_uni" target="sh_uni">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1018" y="826" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

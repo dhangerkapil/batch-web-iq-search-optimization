@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+dist/
+build/
+
+# Secrets and local settings
+.env
+*.pem
+*.key
+
+# Job working folders and files that hold Web IQ content, endpoints, IDs or model answers.
+# Publish only what `python evaluation/report.py` copies into results/.
+runs/
+state.json
+evidence.jsonl
+evidence.jsonl.tmp
+batch-input.jsonl
+kept-lines.jsonl
+flex-attempts.jsonl
+
+# OS and editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,67 @@
+{
+  "currency": "USD",
+  "source": "Azure Retail Prices API list prices on 31 Oct 2026 (the table the results in results/2026-10-31 were priced with)",
+  "retrieved_utc": null,
+  "retrieved_note": "31 Oct 2026",
+  "models": {
+    "gpt-5.4-mini": {
+      "source": "Azure Retail Prices API, eastus2, meters '5.4 mini Batch Inp/cd Inp/Opt Gl' and '5.4 mini Inp/cd Inp/Opt Gl', effective 2026-03-01",
+      "global_batch": {
+        "input_per_1m": 0.375,
+        "cached_input_per_1m": 0.0375,
+        "output_per_1m": 2.25
+      }
+    },
+    "gpt-5.4": {
+      "source": "Azure Retail Prices API, eastus2, meters '5.4 Batch inp/cd inp/opt Gl' and '5.4 inp/cd inp/opt Gl', effective 2026-03-01",
+      "global_batch": {
+        "input_per_1m": 1.25,
+        "cached_input_per_1m": 0.13,
+        "output_per_1m": 7.5
+      }
+    },
+    "gpt-5.4-nano": {
+      "source": "Azure Retail Prices API, eastus2, meters '5.4 nano Batch Inp/cd Inp/Opt Gl' and '5.4 nano Inp/cd Inp/Opt Gl', effective 2026-03-01",
+      "global_batch": {
+        "input_per_1m": 0.1,
+        "cached_input_per_1m": 0.01,
+        "output_per_1m": 0.625
+      }
+    },
+    "gpt-5": {
+      "source": "Azure Retail Prices API, eastus2, meters 'GPT 5 ... Glbl', effective 2025-08-01",
+      "global_batch": {
+        "input_per_1m": 0.625,
+        "cached_input_per_1m": 0.0625,
+        "output_per_1m": 5
+      }
+    },
+    "gpt-5-mini": {
+      "source": "Azure Retail Prices API, eastus2, meters 'GPT 5 Mini ... Glbl', effective 2025-08-01",
+      "global_batch": {
+        "input_per_1m": 0.125,
+        "cached_input_per_1m": 0.0125,
+        "output_per_1m": 1
+      }
+    },
+    "gpt-6-sol": {
+      "source": "Azure Retail Prices API, eastus2, Flex short-context meters '6-sol ShortCo Inp/Cd Inp/Cd Wr/Opt Flex Gl'; added from the 1 Nov 2026 table for the Flex tests",
+      "flex": {
+        "input_per_1m": 1.0,
+        "cached_input_per_1m": 0.1,
+        "cache_write_per_1m": 1.25,
+        "output_per_1m": 5.0
+      }
+    }
+  },
+  "tools": {
+    "web_search_per_1k_requests": {
+      "usd": 14,
+      "source": "Built-in web search tool: billed per Bing request in tool_usage.web_search.num_requests (https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/web-search#web-search-usage-and-billing) at Grounding with Bing Search rates, $14 per 1,000 transactions (https://www.microsoft.com/en-us/bing/apis)"
+    },
+    "webiq_web_per_1k": {
+      "usd": 7,
+      "source": "Microsoft Web IQ /web, $7 per 1,000 calls, GA prices effective 2026-10-16 (https://learn.microsoft.com/en-us/web-iq/resources/pricing)"
+    }
+  }
+}

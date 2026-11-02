@@ -1,0 +1,76 @@
+{
+  "tool_version": "0.1.0",
+  "label": "web-search-gpt54",
+  "design": "web-search",
+  "workload": "brand-owner",
+  "records_file": "records.jsonl",
+  "records": 23,
+  "deployment": "gpt-5.4-batch",
+  "price_model": "gpt-5.4",
+  "settings": {
+    "reasoning_effort": "(model default)",
+    "max_output_tokens": 16000,
+    "max_tool_calls": null
+  },
+  "started_at": "2026-10-31T05:59:22+00:00",
+  "prompt_tokens_before_search": 4329,
+  "batch": {
+    "status": "completed",
+    "created_at": "2026-10-31T05:59:30+00:00",
+    "completed_at": "2026-10-31T06:08:54+00:00",
+    "minutes_end_to_end": 9.4,
+    "minutes_in_progress": 7.1,
+    "request_counts": {
+      "total": 23,
+      "completed": 23,
+      "failed": 0
+    },
+    "errors": []
+  },
+  "actual": {
+    "records": 23,
+    "lines_with_usage": 23,
+    "lines_failed": 0,
+    "json_valid": 23,
+    "per_record_mean": {
+      "input_tokens": 8750.5,
+      "cached_tokens": 3383.7,
+      "output_tokens": 303.7,
+      "reasoning_tokens": 73.9,
+      "web_search_requests": 2.52,
+      "web_search_calls": 1.09,
+      "webiq_calls": 0.0
+    },
+    "totals": {
+      "input_tokens": 201262,
+      "cached_tokens": 77824,
+      "output_tokens": 6984,
+      "reasoning_tokens": 1700,
+      "web_search_requests": 58,
+      "web_search_calls": 25,
+      "webiq_calls": 0
+    },
+    "usd": {
+      "tokens_input": 0.164415,
+      "tokens_output": 0.05238,
+      "web_search": 0.812,
+      "webiq": 0.0,
+      "total": 1.028795
+    },
+    "usd_per_1000_records": 44.73,
+    "search_share_of_cost": 0.789,
+    "prices": {
+      "model": "gpt-5.4",
+      "tier": "global_batch",
+      "source": "Azure Retail Prices API, eastus2, meters '5.4 Batch inp/cd inp/opt Gl' and '5.4 inp/cd inp/opt Gl', effective 2026-03-01"
+    }
+  },
+  "status": "done",
+  "finished_at": "2026-10-31T06:09:00+00:00",
+  "deleted": {
+    "service_files": 2,
+    "local_files": [
+      "batch-input.jsonl"
+    ]
+  }
+}

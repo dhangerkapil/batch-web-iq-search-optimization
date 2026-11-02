@@ -1,0 +1,154 @@
+# settings.toml - every tunable value the code in every option folder uses, in one file.
+#
+# To use another copy (one per environment, say), set the environment variable SEARCH_THEN_BATCH_SETTINGS to its path.
+# A command-line option still overrides a default for one run.
+#
+# Prices aren't in this file. List prices are read live from the public Azure Retail Prices API whenever a forecast or a
+# cost is calculated (prices.py); this file only names the meters to read. Every run records the rates it used in
+# run.json. To price with negotiated rates, or without network access, save a table with
+# `python shared/prices.py --save prices.json`, edit it if you like, and pass --prices prices.json.
+
+[pricing]
+# Public API, no sign-in: https://learn.microsoft.com/en-us/rest/api/cost-management/retail-prices/azure-retail-prices
+api_url = "https://prices.azure.com/api/retail/prices"
+currency_code = "USD"
+timeout_seconds = 60
+max_attempts = 3                      # per API page, including the first; HTTP 429 and 5xx are retried with backoff
+max_meters_per_filter = 10            # meters per request: the API rejected a $filter with over 20 conditions (HTTP 400, 1 Nov 2026)
+lookup_region = "eastus2"             # default region for `prices.py --contains`
+
+# The exact meterName of each rate, per 1M tokens: global_batch for Global Batch, flex for Flex processing (flex_job.py). Add a
+# model by adding its three meters (and cache_write where the model bills prompt-cache writes).
+[pricing.models."gpt-5.4-mini".global_batch]
+service = "Foundry Models"
+region = "eastus2"
+input = "5.4 mini Batch Inp Gl 1M Tokens"
+cached_input = "5.4 mini Batch cd Inp Gl 1M Tokens"
+output = "5.4 mini Batch Opt Gl 1M Tokens"
+
+[pricing.models."gpt-5.4".global_batch]
+service = "Foundry Models"
+region = "eastus2"
+input = "5.4 Batch inp Gl 1M Tokens"
+cached_input = "5.4 Batch cd inp Gl 1M Tokens"
+output = "5.4 Batch opt Gl 1M Tokens"
+
+[pricing.models."gpt-5.4-nano".global_batch]
+service = "Foundry Models"
+region = "eastus2"
+input = "5.4 nano Batch Inp Gl 1M Tokens"
+cached_input = "5.4 nano Batch cd Inp Gl 1M Tokens"
+output = "5.4 nano Batch Opt Gl 1M Tokens"
+
+[pricing.models."gpt-5".global_batch]
+service = "Foundry Models"
+region = "eastus2"
+input = "GPT 5 Batch Inpt Glbl 1M Tokens"
+cached_input = "GPT 5 Batch Inpt cchd Glbl 1M Tokens"
+output = "GPT 5 Batch outpt Glbl 1M Tokens"
+
+[pricing.models."gpt-5-mini".global_batch]
+service = "Foundry Models"
+region = "eastus2"
+input = "GPT 5 Mini Batch Inpt Glbl 1M Tokens"
+cached_input = "GPT 5 Mini Batch Inpt cchd Glbl 1M Tokens"
+output = "GPT 5 Mini Batch outpt Glbl 1M Tokens"
+
+# Flex processing (preview) rates, used by flex_job.py: about half the Standard token price, on a Global Standard
+# deployment of a Flex-capable model (https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/flex-processing).
+# These are the short-context ("ShortCo") meters; very long prompts may bill on long-context meters not listed here.
+[pricing.models."gpt-6-sol".flex]
+service = "Foundry Models"
+region = "eastus2"
+input = "6-sol ShortCo Inp Flex Gl 1M Tokens"
+cached_input = "6-sol ShortCo Cd Inp Flex Gl 1M Tokens"     # prompt-cache reads
+cache_write = "6-sol ShortCo Cd Wr Flex Gl 1M Tokens"       # prompt-cache writes (GPT-5.6 and later), priced instead of input
+output = "6-sol ShortCo Opt Flex Gl 1M Tokens"
+
+# Tools, per 1,000 calls. The built-in web_search tool bills each request counted in tool_usage.web_search.num_requests
+# at Grounding with Bing rates (https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/web-search).
+[pricing.tools.web_search_per_1k_requests]
+service = "MS Bing Services"
+product = "Grounding with Bing"
+meter = "Search Transactions"
+region = "Global"
+
+[pricing.tools.webiq_web_per_1k]
+service = "MS Bing Services"
+product = "Microsoft Web IQ"
+meter = "Web Transactions"
+region = "Global"
+
+# Defaults used when a command doesn't name them.
+[defaults]
+workload = "brand-owner"
+plan = "lean"
+deployment = "my-batch-deployment"    # placeholder for `plan`, which calls no model
+price_model = "gpt-5.4-mini"
+reasoning_effort = "low"
+max_output_tokens = 8000              # a guardrail; you pay for the tokens generated, not the cap
+max_tool_calls = 2                    # bounded-web-search only
+
+[azure_openai]
+token_scope = "https://cognitiveservices.azure.com/.default"
+sdk_max_retries = 6
+client_timeout_seconds = 900
+
+[webiq]
+rest_endpoint = "https://api.microsoft.ai/v3/search/web"
+scope = "https://api.microsoft.ai/.default"            # --webiq-auth entra (app-only token)
+foundry_scope = "https://ai.azure.com/.default"        # the toolbox MCP endpoint
+via = "toolbox"
+auth = "key"
+max_results = 5
+max_chars = 1200                      # characters per result (Web IQ maxLength; also the prompt cap)
+language = "en"
+qps = 5.0                             # stay under your Web IQ AppID allocation (15 per second by default, shared)
+concurrency = 5
+max_attempts = 6
+max_queries = 500                     # safety cap on searches per run
+max_retry_after_seconds = 60          # longest retry-after honoured before the next attempt
+backoff_cap_seconds = 30              # cap on our own exponential backoff
+http_timeout_seconds = 60
+max_query_chars = 1000                # Web IQ rejects longer queries
+
+[toolbox]
+api_version = "v1"
+mcp_server_url = "https://api.microsoft.ai/v3/mcp"
+http_timeout_seconds = 60
+create_timeout_seconds = 120
+
+[batch]
+max_file_bytes = 209715200            # Learn: 200 MB per batch input file
+max_lines_per_file = 100000           # Learn: 100,000 requests per batch input file
+file_expiry_seconds = 1209600         # 14 days, the shortest expiry Learn allows for batch files
+poll_seconds = 60
+stall_minutes = 120
+
+# Flex processing (flex-web-search-and-web-iq/flex_job.py): one synchronous Responses API request per line, with
+# service_tier "flex" (flex.py).
+[flex]
+concurrency = 4                       # requests in flight at once; size it to the deployment's tokens-per-minute quota
+max_attempts = 3                      # per line per round, including the first; HTTP 408, 429 and 5xx are retried (timeouts and dropped connections are held)
+backoff_base_seconds = 10             # our first backoff wait, doubled per attempt, with jitter
+max_delay_seconds = 120               # cap on our own backoff
+max_server_wait_seconds = 600         # longest Retry-After honoured; a longer one isn't cut short: the line is left for a re-run
+client_timeout_seconds = 900          # per request; Learn suggests 15 minutes for Flex
+
+[forecast]
+default_output_tokens_per_line = 800  # for a model not listed below
+framing_tokens = 12                   # message framing the service adds per message (measured: a few tokens)
+
+# Output tokens per record assumed in forecasts (reasoning effort low, strict schema). The sample measured 278-301 on
+# gpt-5.4-mini and 336 on gpt-5.4; these round up so forecasts err high. The other models' values are rough guesses:
+# measure your own workload and pass --output-tokens-per-line.
+[forecast.output_tokens_per_line]
+"gpt-5.4-mini" = 350
+"gpt-5.4" = 400
+"gpt-5.4-nano" = 500
+"gpt-5" = 900
+"gpt-5-mini" = 700
+"gpt-6-sol" = 700                     # Flex only; a rough guess like the three above
+
+[caching]
+min_prefix_tokens = 1024              # prompt caching needs an identical prefix of at least 1,024 tokens

@@ -1,0 +1,135 @@
+{
+  "tool_version": "0.1.0",
+  "label": "two-stage-lean-gpt54mini",
+  "design": "two-stage",
+  "workload": "brand-owner",
+  "records_file": "records.jsonl",
+  "records": 23,
+  "deployment": "gpt-5.4-mini-batch",
+  "price_model": "gpt-5.4-mini",
+  "settings": {
+    "reasoning_effort": "low",
+    "max_output_tokens": 8000,
+    "max_tool_calls": null
+  },
+  "started_at": "2026-10-31T05:48:43+00:00",
+  "plan": "lean",
+  "plan_summary": {
+    "records": 23,
+    "searches": 26,
+    "searches_per_record": 1.13,
+    "by_purpose": {
+      "brand_owner": 20,
+      "owner_hq": 6
+    },
+    "searches_without_sharing": 43,
+    "saved_by_sharing": 17,
+    "shared_searches": 6
+  },
+  "search_settings": {
+    "via": "toolbox",
+    "max_results": 5,
+    "max_chars": 1200,
+    "language": "en",
+    "qps": 3.0
+  },
+  "forecast_before_search": {
+    "lines": 23,
+    "webiq_calls": 26,
+    "input_tokens": 97979,
+    "input_tokens_exact": false,
+    "output_tokens_per_line_assumed": 650,
+    "usd": {
+      "webiq": 0.182,
+      "input": 0.0367,
+      "output": 0.0336,
+      "total": 0.2524
+    },
+    "usd_per_1000_records": 10.97,
+    "note": "List prices from prices.json; cached-input discounts are not assumed, so forecasts err high."
+  },
+  "stage1": {
+    "searches": 26,
+    "errors": 0,
+    "seconds": 32.5,
+    "mean_latency_s": 0.74,
+    "results_per_search_mean": 5.0,
+    "searches_with_no_results": 0,
+    "premium_results": 0
+  },
+  "forecast_before_submit": {
+    "lines": 23,
+    "webiq_calls": 26,
+    "input_tokens": 83148,
+    "input_tokens_exact": true,
+    "output_tokens_per_line_assumed": 650,
+    "usd": {
+      "webiq": 0.182,
+      "input": 0.0312,
+      "output": 0.0336,
+      "total": 0.2468
+    },
+    "usd_per_1000_records": 10.73,
+    "note": "List prices from prices.json; cached-input discounts are not assumed, so forecasts err high."
+  },
+  "batch": {
+    "status": "completed",
+    "created_at": "2026-10-31T05:49:22+00:00",
+    "completed_at": "2026-10-31T05:57:06+00:00",
+    "minutes_end_to_end": 7.7,
+    "minutes_in_progress": 5.5,
+    "request_counts": {
+      "total": 23,
+      "completed": 23,
+      "failed": 0
+    },
+    "errors": []
+  },
+  "actual": {
+    "records": 23,
+    "lines_with_usage": 23,
+    "lines_failed": 0,
+    "json_valid": 23,
+    "per_record_mean": {
+      "input_tokens": 3534.1,
+      "cached_tokens": 233.7,
+      "output_tokens": 277.5,
+      "reasoning_tokens": 67.5,
+      "web_search_requests": 0.0,
+      "web_search_calls": 0.0,
+      "webiq_calls": 1.13
+    },
+    "totals": {
+      "input_tokens": 81285,
+      "cached_tokens": 5376,
+      "output_tokens": 6383,
+      "reasoning_tokens": 1552,
+      "web_search_requests": 0,
+      "web_search_calls": 0,
+      "webiq_calls": 26
+    },
+    "usd": {
+      "tokens_input": 0.028667,
+      "tokens_output": 0.014362,
+      "web_search": 0.0,
+      "webiq": 0.182,
+      "total": 0.225029
+    },
+    "usd_per_1000_records": 9.78,
+    "search_share_of_cost": 0.809,
+    "prices": {
+      "model": "gpt-5.4-mini",
+      "tier": "global_batch",
+      "source": "Azure Retail Prices API, eastus2, meters '5.4 mini Batch Inp/cd Inp/Opt Gl' and '5.4 mini Inp/cd Inp/Opt Gl', effective 2026-03-01"
+    }
+  },
+  "status": "done",
+  "finished_at": "2026-10-31T05:57:21+00:00",
+  "deleted": {
+    "service_files": 2,
+    "local_files": [
+      "evidence.jsonl",
+      "batch-input.jsonl"
+    ]
+  }
+}

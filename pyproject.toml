@@ -1,0 +1,5 @@
+# The code runs from its folders: each option's script finds shared/ on its own, so there is nothing to install beyond
+# requirements.txt (Python 3.10 or later). See README.md. This file only configures the offline tests.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

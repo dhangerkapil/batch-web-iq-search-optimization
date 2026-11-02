@@ -1,0 +1,31 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -r requirements.txt
+      # The tests call no Azure or Web IQ service and need no secrets.
+      - run: python -m pytest -q
+      # Each option folder's script, offline: priced with the saved table, so these don't depend on the network.
+      - run: python option-1-bounded-web-search/bounded_web_search.py plan samples/brand-owner/records.jsonl
+      - run: python option-2-two-stage-web-iq/two_stage.py plan samples/brand-owner/records.jsonl --plan lean --prices tests/fixtures/prices-2026-10-31.json
+      - run: python flex-web-search-and-web-iq/flex_job.py plan samples/brand-owner/records.jsonl --design two-stage --price-model gpt-6-sol --prices tests/fixtures/prices-2026-10-31.json
+      # Reads every meter named in settings.toml from the public Azure Retail Prices API (no sign-in, no secrets).
+      # A failure here means a meter was renamed or the API was unreachable; it warns without failing the build.
+      - run: python shared/prices.py
+        continue-on-error: true
