@@ -1,4 +1,4 @@
-"""Stage 1: run the search plan against Microsoft Web IQ /web, rate-limited, retried and resumable.
+"""Stage 1: run the search plan against Microsoft Web IQ /web, rate-limited, retried (in automatic rounds) and resumable.
 
 Two ways to reach Web IQ:
   toolbox  A Microsoft Foundry toolbox (MCP endpoint) that wraps a Web IQ project connection. Calls use a
@@ -32,6 +32,31 @@ WEBIQ_SCOPE = _W["scope"]
 FOUNDRY_SCOPE = _W["foundry_scope"]
 RETRYABLE = {408, 429, 500, 502, 503, 504}
 RESULT_FIELDS = ("title", "url", "content", "lastUpdatedAt", "crawledAt", "contentTier")
+# A toolbox relays Web IQ's HTTP 429 as a JSON-RPC error (code -32008) in an HTTP 200 response, with no Retry-After
+# header: its text says "Response status code does not indicate success: 429 (Too Many Requests)", "auth_user_throttled"
+# and "(Retry after: 60s)". Other Web IQ errors probably arrive the same way, with their own status in that sentence,
+# though only the 429 has been seen live.
+RELAYED_STATUS = re.compile(r"does not indicate success:\s*(\d{3})", re.I)
+RPC_THROTTLED = re.compile(r"\b429\b|too many requests|throttled", re.I)
+# "Retry after: 60s" in that text, or "retryAfter": "60s" in the JSON body of a Web IQ REST 429.
+ASKED_WAIT = re.compile(r"retry[\s_-]*after\W{0,12}?(\d+(?:\.\d+)?)", re.I)
+
+
+def asked_wait(text: str | None) -> float | None:
+    """Seconds an error's text asks us to wait before trying again, if it says (the longest, if it says more than once)."""
+    waits = [float(w) for w in ASKED_WAIT.findall(text or "")]
+    return max(waits) if waits else None
+
+
+def relayed_status(text: str | None) -> int | None:
+    """The HTTP status of a Web IQ error relayed by a toolbox, read from its text, if it says."""
+    m = RELAYED_STATUS.search(text or "")
+    return int(m.group(1)) if m else None
+
+
+async def _sleep(seconds: float) -> None:
+    """The wait between attempts and between rounds. Tests replace it."""
+    await asyncio.sleep(seconds)
 
 
 class RateLimiter:
@@ -92,17 +117,21 @@ class RestClient:
         return None
 
     async def call(self, client, args: dict, req_id: int):
-        headers = {"content-type": "application/json"}
-        if self.auth == "key":
-            headers["x-apikey"] = self.key
-        else:
-            headers["Authorization"] = f"Bearer {await self.tokens.get()}"
-        r = await client.post(self.endpoint, json=args, headers=headers)
+        for attempt in (1, 2):
+            headers = {"content-type": "application/json"}
+            if self.auth == "key":
+                headers["x-apikey"] = self.key
+            else:
+                headers["Authorization"] = f"Bearer {await self.tokens.get()}"
+            r = await client.post(self.endpoint, json=args, headers=headers)
+            if r.status_code != 401 or self.auth == "key" or attempt == 2:
+                break
+            # Web IQ refused our Entra ID token, which may have expired: one more try with a new one.
+            self.tokens.reset()
         if r.status_code == 200:
             return 200, r.json(), None, None
-        if r.status_code == 401 and self.auth != "key":
-            self.tokens.reset()
-        return r.status_code, None, r.text[:300], r.headers.get("retry-after")
+        # Web IQ puts the wait of an HTTP 429 in the JSON body ("retryAfter": "60s"), not in a Retry-After header.
+        return r.status_code, None, r.text[:300], r.headers.get("retry-after") or asked_wait(r.text)
 
 
 def _rpc_messages(resp) -> list[dict]:
@@ -166,21 +195,28 @@ class ToolboxClient:
             self.tool = web[0]
 
     async def call(self, client, args: dict, req_id: int):
-        r = await self._post(client, {"jsonrpc": "2.0", "id": req_id, "method": "tools/call", "params": {"name": self.tool, "arguments": args}})
+        payload = {"jsonrpc": "2.0", "id": req_id, "method": "tools/call", "params": {"name": self.tool, "arguments": args}}
+        r = await self._post(client, payload)
         if r.status_code == 401:
+            # The toolbox refused our Entra ID token, which may have expired: one more try with a new one.
             self.tokens.reset()
+            r = await self._post(client, payload)
         if r.status_code != 200:
-            return r.status_code, None, r.text[:300], r.headers.get("retry-after")
+            return r.status_code, None, r.text[:300], r.headers.get("retry-after") or asked_wait(r.text)
         msgs = _rpc_messages(r)
         msg = next((m for m in reversed(msgs) if m.get("id") == req_id), msgs[-1] if msgs else {})
         if "error" in msg:
-            return 502, None, json.dumps(msg["error"])[:300], None
+            # A Web IQ error relayed by the toolbox: its status and, for a 429, its wait are read from the full text,
+            # before it's cut short. Only an error that names no status is treated as a 502.
+            text = json.dumps(msg["error"])
+            status = relayed_status(text) or (429 if RPC_THROTTLED.search(text) else 502)
+            return status, None, text[:300], asked_wait(text) if status == 429 else None
         res = msg.get("result") or {}
         text = "".join(p.get("text", "") for p in res.get("content") or [] if p.get("type") == "text")
         if res.get("isError"):
-            # Web IQ errors such as 429 arrive as tool results with isError set.
-            code = 429 if re.search(r"\b429\b|rate.?limit", text, re.I) else 400
-            return code, None, text[:300], None
+            # Web IQ errors can also arrive as tool results with isError set.
+            status = relayed_status(text) or (429 if re.search(r"\b429\b|rate.?limit", text, re.I) else 400)
+            return status, None, text[:300], asked_wait(text) if status == 429 else None
         data = res.get("structuredContent")
         if not isinstance(data, dict):
             try:
@@ -218,19 +254,38 @@ def normalize_results(data: dict) -> list[dict]:
     return [{k: w.get(k) for k in RESULT_FIELDS if w.get(k) is not None} for w in data.get("webResults") or []]
 
 
-def _backoff(attempt: int, retry_after: str | None) -> float:
-    if retry_after:
-        try:
-            return min(float(_W["max_retry_after_seconds"]), float(retry_after))
-        except ValueError:
-            pass
+def _seconds(value) -> float | None:
+    """A wait in seconds from a Retry-After value or a parsed number; None for anything else (an HTTP date, say)."""
+    try:
+        return None if value is None else max(0.0, float(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def _backoff(attempt: int, retry_after) -> float:
+    """The wait before the next attempt: the wait the service asked for, in full (_one leaves a search asked to wait
+    longer than max_retry_after_seconds for the next round), or our own backoff: 2, 4, 8... seconds, capped at
+    backoff_cap_seconds, plus up to a second of jitter."""
+    asked = _seconds(retry_after)
+    if asked is not None:
+        return min(float(_W["max_retry_after_seconds"]), asked)
     return min(float(_W["backoff_cap_seconds"]), 2**attempt) + random.random()
+
+
+def retry_in_round(entry: dict) -> bool:
+    """A failed search that may pass in a later round: HTTP 408, 429 or 5xx, or a network error (no status). Other
+    4xx (a bad query, sign-in or permissions) fail the same way however often they're retried."""
+    status = entry.get("http_status")
+    return bool(entry.get("error")) and (status is None or status in (408, 429) or 500 <= status <= 599)
 
 
 async def _one(client, api, limiter: RateLimiter, entry: dict, opts, req_id: int) -> dict:
     args = search_args(entry, opts)
-    status, err, attempt = None, None, 0
-    failed: list[str] = []
+    status, err, attempt, asked = None, None, 0, None
+    before = int(entry.get("attempts") or 0)  # made in earlier rounds of this run
+    failed: list[str] = list(entry.get("failed_attempts") or [])
+    for key in ("http_status", "retry_after_s"):
+        entry.pop(key, None)
     for attempt in range(1, opts.max_attempts + 1):
         await limiter.wait()
         t0 = time.time()
@@ -243,7 +298,7 @@ async def _one(client, api, limiter: RateLimiter, entry: dict, opts, req_id: int
             entry.update(
                 results=normalize_results(data),
                 retrieved_at=dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
-                attempts=attempt,
+                attempts=before + attempt,
                 failed_attempts=failed,
                 via=api.name,
                 latency_s=round(time.time() - t0, 2),
@@ -251,11 +306,18 @@ async def _one(client, api, limiter: RateLimiter, entry: dict, opts, req_id: int
             entry.pop("error", None)
             return entry
         failed.append(str(status) if status is not None else "network")
-        if status is not None and status not in RETRYABLE and status != 401:
-            break
+        wait = _seconds(retry_after)
+        if wait is not None:
+            asked = max(asked or 0.0, wait)
+        if status is not None and status not in RETRYABLE:
+            break  # a bad query, sign-in or permissions: it fails the same way however often it's sent
+        if wait is not None and wait > float(_W["max_retry_after_seconds"]):
+            break  # asked to wait longer than we wait between attempts: the next round's pause waits it out
         if attempt < opts.max_attempts:
-            await asyncio.sleep(_backoff(attempt, retry_after))
-    entry.update(error=f"HTTP {status}: {err}" if status else err, attempts=attempt, failed_attempts=failed)
+            await _sleep(_backoff(attempt, retry_after))
+    entry.update(error=f"HTTP {status}: {err}" if status else err, http_status=status, attempts=before + attempt, failed_attempts=failed)
+    if asked is not None:
+        entry["retry_after_s"] = asked
     return entry
 
 
@@ -295,23 +357,53 @@ def _session_stats(entries: list[dict], seconds: float) -> dict:
     }
 
 
+def query_cap(plan: dict[str, dict], opts) -> int:
+    """Most searches one run may make: --max-queries if given, else max_queries_per_record for each record the plan
+    serves, so the cap grows with the job instead of stopping a large one at the start."""
+    if getattr(opts, "max_queries", None):
+        return int(opts.max_queries)
+    return int(_W["max_queries_per_record"]) * len({rid for e in plan.values() for rid in e["used_by"]})
+
+
+def auto_rounds(opts) -> int:
+    """Rounds in all: auto_rounds from settings.toml, or 1 with --no-auto-retry (failed searches wait for a re-run)."""
+    return 1 if getattr(opts, "no_auto_retry", False) else max(1, int(_W["auto_rounds"]))
+
+
+def round_pause(rnd: int, failed: list[dict]) -> float:
+    """The pause before round `rnd` (2 or later): round_waits_seconds, or the longest wait Web IQ asked for if that's
+    longer (up to max_round_wait_seconds)."""
+    waits = [float(w) for w in _W["round_waits_seconds"]] or [0.0]
+    asked = max((e.get("retry_after_s") or 0.0 for e in failed), default=0.0)
+    return max(waits[min(rnd - 2, len(waits) - 1)], min(asked, float(_W["max_round_wait_seconds"])))
+
+
 async def _run(plan: dict[str, dict], out_path: pathlib.Path, opts, api=None) -> tuple[list[dict], dict]:
     import httpx
 
     done = _read_done(out_path)
     todo = [dict(e) for qid, e in plan.items() if qid not in done]
-    if len(todo) > opts.max_queries:
-        raise SystemExit(f"{len(todo)} searches to run, above --max-queries {opts.max_queries}. Raise it deliberately.")
-    print(f"Stage 1: {len(plan)} unique searches planned, {len(done)} already done, {len(todo)} to run via {opts.via}")
-    ran: list[dict] = []
-    t0 = time.time()
+    cap = query_cap(plan, opts)
+    if len(todo) > cap:
+        how = "--max-queries" if getattr(opts, "max_queries", None) else f"{_W['max_queries_per_record']} per record (max_queries_per_record)"
+        raise SystemExit(f"{len(todo)} searches to run, above the safety cap of {cap} ({how}). Check the search plan, "
+                         "or pass --max-queries to raise the cap deliberately.")
+    rounds = auto_rounds(opts)
+    print(f"Stage 1: {len(plan)} unique searches planned, {len(done)} already done, {len(todo)} to run via {opts.via}"
+          + (f" (round 1 of up to {rounds})" if todo and rounds > 1 else ""))
+    ran: dict[str, dict] = {}
+    t0, rounds_run = time.time(), 0
     if todo:
         api = api or make_client(opts)
         limiter, sem = RateLimiter(opts.qps), asyncio.Semaphore(opts.concurrency)
         out_path.parent.mkdir(parents=True, exist_ok=True)
+        # Measured 2 Nov 2026 through a Foundry toolbox: after 6 s or more idle, a search took 1.6-1.9 s with httpx's
+        # default 5 s keep-alive, because the client opened a new TLS connection, and 0.38-0.49 s with the connection
+        # kept open. So idle connections are kept for keepalive_seconds.
+        limits = httpx.Limits(keepalive_expiry=float(_W["keepalive_seconds"]))
         # Each search is appended as soon as it finishes, so an interrupted run resumes without repeating (and paying for) finished searches.
         with open(out_path, "a", encoding="utf-8", newline="\n") as log:
-            async with httpx.AsyncClient(timeout=float(_W["http_timeout_seconds"])) as client:
+            async with httpx.AsyncClient(timeout=float(_W["http_timeout_seconds"]), limits=limits) as client:
                 await api.start(client)
 
                 async def bounded(i, e):
@@ -319,14 +411,25 @@ async def _run(plan: dict[str, dict], out_path: pathlib.Path, opts, api=None) ->
                         r = await _one(client, api, limiter, e, opts, 100 + i)
                     log.write(json.dumps(r, ensure_ascii=False, separators=(",", ":")) + "\n")
                     log.flush()
-                    ran.append(r)
+                    ran[r["query_id"]] = r
                     return r
 
-                for e in await asyncio.gather(*(bounded(i, e) for i, e in enumerate(todo))):
-                    if not e.get("error"):
-                        done[e["query_id"]] = e
+                for rnd in range(1, rounds + 1):
+                    if rnd > 1:
+                        # Searches that failed with an error that may pass run again, after a pause; other 4xx don't.
+                        todo = [e for e in ran.values() if retry_in_round(e)]
+                        if not todo:
+                            break
+                        pause = round_pause(rnd, todo)
+                        print(f"Stage 1, round {rnd} of {rounds}: {len(todo)} searches failed with HTTP 408, 429, 5xx or a "
+                              f"network error; running them again in {pause:.0f} s")
+                        await _sleep(pause)
+                    rounds_run = rnd
+                    for e in await asyncio.gather(*(bounded(i, e) for i, e in enumerate(todo))):
+                        if not e.get("error"):
+                            done[e["query_id"]] = e
     final = []
-    errors = {e["query_id"]: e for e in ran if e.get("error")}
+    errors = {qid: e for qid, e in ran.items() if e.get("error")}
     for qid, e in plan.items():
         merged = dict(done.get(qid) or errors.get(qid) or e)
         merged["used_by"] = e["used_by"]  # the current plan decides which records use each search
@@ -335,8 +438,9 @@ async def _run(plan: dict[str, dict], out_path: pathlib.Path, opts, api=None) ->
     tmp = out_path.with_name(out_path.name + ".tmp")
     write_jsonl(tmp, final)
     os.replace(tmp, out_path)
-    stats = _session_stats(ran, time.time() - t0)
-    stats["already_done"] = len(plan) - len(todo)
+    stats = _session_stats(list(ran.values()), time.time() - t0)
+    stats["already_done"] = len(plan) - len(ran)
+    stats["rounds"] = rounds_run
     return final, stats
 
 
@@ -360,5 +464,5 @@ def add_search_args(p) -> None:
     p.add_argument("--language", default=_W["language"])
     p.add_argument("--qps", type=float, default=float(_W["qps"]), help="stay under your Web IQ AppID limit (15 QPS by default, shared)")
     p.add_argument("--concurrency", type=int, default=int(_W["concurrency"]))
-    p.add_argument("--max-attempts", type=int, default=int(_W["max_attempts"]))
-    p.add_argument("--max-queries", type=int, default=int(_W["max_queries"]), help="safety cap on searches per run")
+    p.add_argument("--max-attempts", type=int, default=int(_W["max_attempts"]), help="per search per round")
+    p.add_argument("--max-queries", type=int, help=f"safety cap on searches per run (default: {_W['max_queries_per_record']} per record)")

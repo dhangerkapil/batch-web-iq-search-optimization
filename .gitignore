@@ -20,8 +20,11 @@ state.json
 evidence.jsonl
 evidence.jsonl.tmp
 batch-input.jsonl
+batch-input-part.jsonl
 kept-lines.jsonl
+kept-lines.jsonl.tmp
 flex-attempts.jsonl
+held-records.jsonl
 
 # OS and editor
 .DS_Store

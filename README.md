@@ -89,7 +89,7 @@ python option-2-two-stage-web-iq/two_stage.py run samples/brand-owner/records.js
 python evaluation/evaluate.py runs/lean --labels samples/brand-owner/labels.jsonl
 ```
 
-`run` stops before spending more if a forecast is above `--max-cost`, resumes if re-run after an interruption, and deletes its working files at the end ([job flow](diagrams/02-job-flow.png)). Option 1 needs only the Global Batch deployment: see its [README](option-1-bounded-web-search/README.md#run-it).
+`run` stops before spending more if a forecast is above `--max-cost`, resumes if re-run after an interruption, and deletes its working files at the end ([job flow](diagrams/02-job-flow.png)). It's built to run unattended: it waits out throttling and a full batch quota, splits jobs above the batch file limits, and sends searches and lines that failed with errors that may pass again in up to three rounds. What it still can't answer is held and listed in `held-records.jsonl`, and every `run` ends with an exit code a scheduler can act on ([Run it unattended](docs/07-deploy-and-run.md#run-it-unattended)). Option 1 needs only the Global Batch deployment: see its [README](option-1-bounded-web-search/README.md#run-it).
 
 **Prices and settings.** Forecasts and costs use list prices read live from the public [Azure Retail Prices API](https://learn.microsoft.com/en-us/rest/api/cost-management/retail-prices/azure-retail-prices) (no sign-in); `python shared/prices.py` shows them, and `--prices <file>` prices with a saved or negotiated table instead. A job saves the prices it started with in `prices-used.json`, so a resumed job is priced the same way. Every other tunable value (defaults, limits, retries, Web IQ and toolbox settings, and the names of the price meters) is in one file, [shared/settings.toml](shared/settings.toml); set `SEARCH_THEN_BATCH_SETTINGS` to use another copy.
 
@@ -105,7 +105,7 @@ Read in this order the first time:
 | 4 | [04 - Cost model](docs/04-cost-model.md) | Prices and sources, formulas, measured costs, where savings come from, forecast accuracy |
 | 5 | [05 - Best practices](docs/05-best-practices.md) | A checklist: measuring, searches, evidence, prompts, spend, reliability, security, quality |
 | 6 | [06 - Security, privacy and terms](docs/06-security-privacy-and-terms.md) | Identities and keys, where data goes, compliance boundaries, Web IQ storage terms, prompt injection |
-| 7 | [07 - Deploy and run](docs/07-deploy-and-run.md) | Setup, roles, running the sample, running at scale, troubleshooting |
+| 7 | [07 - Deploy and run](docs/07-deploy-and-run.md) | Setup, roles, running the sample, running unattended and the exit codes, running at scale, troubleshooting |
 | 8 | [08 - Evaluate quality](docs/08-evaluate-quality.md) | Labeled sets, the `evaluate` command, reading misses |
 | 9 | [09 - Results on the sample](docs/09-results-on-the-sample.md) | Every measured number and every miss |
 | 10 | [10 - Adapt it to your workload](docs/10-adapt-to-your-workload.md) | Writing your own workload class, rules and schema |
@@ -118,8 +118,9 @@ Read in this order the first time:
 | [option-1-bounded-web-search/](option-1-bounded-web-search/README.md) | Option 1: [README](option-1-bounded-web-search/README.md), [WALKTHROUGH](option-1-bounded-web-search/WALKTHROUGH.md), `bounded_web_search.py` (the command) and `web_search_lines.py` (one line with the capped web search tool) |
 | [option-2-two-stage-web-iq/](option-2-two-stage-web-iq/README.md) | Option 2: [README](option-2-two-stage-web-iq/README.md), [WALKTHROUGH](option-2-two-stage-web-iq/WALKTHROUGH.md), `two_stage.py` (the command), `search_plan.py` (the search plan), `webiq.py` (stage 1: Web IQ through a Foundry toolbox or REST, rate-limited, retried, resumable), `two_stage_lines.py` (one no-tools line with its evidence) and `toolbox.py` (creates, tests and deletes the Foundry toolbox) |
 | [flex-web-search-and-web-iq/](flex-web-search-and-web-iq/README.md) | Flex: [README](flex-web-search-and-web-iq/README.md), [WALKTHROUGH](flex-web-search-and-web-iq/WALKTHROUGH.md), `flex_job.py` (the command) and `flex.py` (each line as a synchronous Flex request, paced, retried and recorded in an attempt ledger, resumable) |
-| [shared/pipeline.py](shared/pipeline.py) | The job runner behind every option's `plan`, `search`, `build` and `run` |
-| [shared/batch.py](shared/batch.py) | Upload, submit, wait, collect usage, delete files |
+| [shared/pipeline.py](shared/pipeline.py) | The job runner behind every option's `plan`, `search`, `build` and `run`: automatic rounds, held records and exit codes |
+| [shared/batch.py](shared/batch.py) | Split, upload, create (waiting while the quota is full), wait, collect usage, sort lines for another round, delete files |
+| [shared/exits.py](shared/exits.py) | The exit codes every `run` ends with |
 | [shared/cost.py](shared/cost.py), [shared/prices.py](shared/prices.py) | Forecasts and actual cost, at list prices read live from the Azure Retail Prices API; `python shared/prices.py` prints the table |
 | [shared/settings.toml](shared/settings.toml) | Every tunable value in one file: defaults, limits, retries, Web IQ and toolbox settings, and the price meters to read |
 | [shared/analyze.py](shared/analyze.py) | Cost drivers of an existing batch input or output file |
@@ -139,7 +140,7 @@ Read in this order the first time:
 - **Storing Web IQ content.** The terms restrict storing content. This sample keeps evidence only for a job's duration; confirm that fits your use with your legal team ([06](docs/06-security-privacy-and-terms.md#web-iq-terms-storing-content)).
 - **Evidence age.** Evidence is minutes to hours old when the batch runs.
 - **Skip rules.** The lean plan's skip rule is a business decision with a known blind spot (R10 in the sample).
-- **Not tested:** Data Zone Batch, the Entra ID REST path, other models, a second pass for `insufficient_evidence` records, and jobs large enough to hit rate limits. Flex processing was checked live on 5 records only, not measured on the sample.
+- **Not tested:** Data Zone Batch, the Entra ID REST path, other models, a second pass for `insufficient_evidence` records, and jobs large enough to hit rate limits. Flex processing was checked live on 5 records only, not measured on the sample. The automatic rounds, split jobs, quota waits and exit codes are covered by offline tests only.
 
 ## Contributing
 

@@ -35,8 +35,8 @@ python bounded_web_search.py build ../samples/brand-owner/records.jsonl --deploy
 It prints `Wrote 23 bounded-web-search lines to bounded.jsonl` and calls nothing in Azure. In order:
 
 1. [main](bounded_web_search.py#L34) defines the `build` command and fixes the design to `bounded-web-search`; `--design web-search` gives the uncapped lines instead.
-2. [cmd_build](../shared/pipeline.py#L191) calls [load_records](../shared/pipeline.py#L96), which reads the file and stops if a record has a data problem ([problems](../shared/workloads/brand_owner.py#L73): a missing field, or a market that isn't a two-letter ISO code), unless you pass `--allow-problems`.
-3. [build_lines](../shared/pipeline.py#L122) calls [web_search_line](web_search_lines.py#L16) once per record:
+2. [cmd_build](../shared/pipeline.py#L273) calls [load_records](../shared/pipeline.py#L178), which reads the file and stops if a record has a data problem ([problems](../shared/workloads/brand_owner.py#L73): a missing field, or a market that isn't a two-letter ISO code), unless you pass `--allow-problems`.
+3. [build_lines](../shared/pipeline.py#L204) calls [web_search_line](web_search_lines.py#L16) once per record:
    - [line 32](web_search_lines.py#L32) takes the prompts from the workload ([web_search_prompts](../shared/workloads/brand_owner.py#L119)): the task, the decision rules and a three-line search budget.
    - [Line 33](web_search_lines.py#L33) adds the current `web_search` tool, not `web_search_preview`, which Learn calls "supported but not recommended".
    - [Line 44](web_search_lines.py#L44) sets `user_location` to the record's market ([user_country](../shared/workloads/brand_owner.py#L129)), to steer results to that market.
@@ -69,7 +69,7 @@ Search budget:
 
 ### Where each setting comes from
 
-| In the line | Default, in [settings.toml](../shared/settings.toml) | Command-line option ([cli.py](../shared/cli.py#L34)) | Written by |
+| In the line | Default, in [settings.toml](../shared/settings.toml) | Command-line option ([cli.py](../shared/cli.py#L36)) | Written by |
 | --- | --- | --- | --- |
 | `max_tool_calls: 2` | `[defaults] max_tool_calls`, [line 90](../shared/settings.toml#L90) | `--max-tool-calls` | [line 45](web_search_lines.py#L45) |
 | `reasoning.effort: low` | `[defaults] reasoning_effort`, [line 88](../shared/settings.toml#L88) | `--reasoning-effort` | [line 46](web_search_lines.py#L46) |
@@ -87,21 +87,22 @@ python bounded_web_search.py run ../samples/brand-owner/records.jsonl --workdir 
     --deployment <Global Batch deployment> --price-model gpt-5.4-mini
 ```
 
-[cmd_run](../shared/pipeline.py#L205), in order:
+[cmd_run](../shared/pipeline.py#L287), in order:
 
-1. **Checks first.** There's no `--max-cost` option: the model decides how many searches to run, so no forecast can bound the cost. (Through [flex_job.py](../flex-web-search-and-web-iq/flex_job.py), which has the option, `cmd_run` refuses it for this design, [line 208](../shared/pipeline.py#L208).) A work folder that already finished is reported as done, and nothing is sent ([line 217](../shared/pipeline.py#L217)).
-2. **Prices.** [run_prices](../shared/pipeline.py#L45) reads list prices once, live from the Azure Retail Prices API, and saves them as `prices-used.json`, so a resumed job is priced the same way ([line 225](../shared/pipeline.py#L225)).
-3. **Lines.** It builds the lines as in step 2 and writes `batch-input.jsonl` ([line 298](../shared/pipeline.py#L298)).
-4. **Submit.** [submit](../shared/batch.py#L62) ([line 312](../shared/pipeline.py#L312)):
-   - [check_lines](../shared/batch.py#L45) refuses a file the Batch API would reject: more than one deployment or endpoint, repeated `custom_id`s, or more than 100,000 lines. It also refuses a file over 200 MB.
-   - It uploads the file with a 14-day expiry, a backstop in case clean-up never runs.
-   - It waits until the service has processed the file, then creates the job.
-   - The work folder's `state.json` records the endpoint and the job ([line 313](../shared/pipeline.py#L313)).
-5. **Wait.** [wait](../shared/batch.py#L96) polls every `--poll-seconds` (60 by default) and warns if nothing completes or fails for `--stall-minutes`; `--cancel-on-stall` cancels the job instead ([line 322](../shared/pipeline.py#L322)).
-6. **Collect.** [collect](../shared/batch.py#L157) reads the output file and turns each response into one row of `metrics.jsonl` with [response_metrics](../shared/batch.py#L117): tokens, billed web search requests, search calls, and whether the answer is valid JSON ([line 323](../shared/pipeline.py#L323)).
-7. **Clean up.** It deletes the job's input, output and error files in Azure OpenAI ([line 324](../shared/pipeline.py#L324)).
-8. **A job that didn't complete.** If it ended `failed`, `expired` or `cancelled`, the completed lines were billed, so they're kept in `kept-lines.jsonl`. Running the same command again resubmits only the other lines ([line 325](../shared/pipeline.py#L325)).
-9. **Results.** It writes `results.jsonl`, one answer per record ([line 344](../shared/pipeline.py#L344)), prices the job with [actual](../shared/cost.py#L103) ([line 346](../shared/pipeline.py#L346)), and deletes the local working files ([line 348](../shared/pipeline.py#L348)). `run.json` keeps the settings, timings and cost.
+1. **Checks first.** There's no `--max-cost` option: the model decides how many searches to run, so no forecast can bound the cost. (Through [flex_job.py](../flex-web-search-and-web-iq/flex_job.py), which has the option, `cmd_run` refuses it for this design, [line 293](../shared/pipeline.py#L293).) A work folder that already finished is reported as done, and nothing is sent ([line 302](../shared/pipeline.py#L302)).
+2. **Prices.** [run_prices](../shared/pipeline.py#L53) reads list prices once, live from the Azure Retail Prices API, and saves them as `prices-used.json`, so a resumed job is priced the same way ([line 312](../shared/pipeline.py#L312)).
+3. **Lines.** It builds the lines as in step 2 and writes `batch-input.jsonl` ([line 396](../shared/pipeline.py#L396)).
+4. **Split and submit.** [run_batch](../shared/pipeline.py#L600) sends the lines in rounds. [round_jobs](../shared/pipeline.py#L439) puts a round's lines in one batch job or, above 100,000 lines or 200 MB, in several, cut at 100,000 lines and 180 MB by [split_parts](../shared/batch.py#L84). For each job, [submit_round](../shared/pipeline.py#L517):
+   - [check_lines](../shared/batch.py#L62) refuses a file the Batch API would reject: more than one deployment or endpoint, or repeated `custom_id`s.
+   - [upload](../shared/batch.py#L107) uploads the file with a 14-day expiry, a backstop in case clean-up never runs, and waits until the service has processed it.
+   - [create_job](../shared/pipeline.py#L463) creates the job, once only. [create](../shared/batch.py#L206) sends it with the SDK's own retries off, because the SDK would send it again with no idempotency key. Each attempt is recorded in `state.json` before it's sent; if a create gets no answer (the run was stopped, or the call timed out or failed with 5xx), [find_job](../shared/batch.py#L215) lists the batch jobs before another attempt, and a job already made from the same file is waited for instead, because two would bill twice. If the jobs can't be listed, the run deletes nothing and ends with exit code 75 when the list got no answer, or 1 when the sign-in or access was refused; the next run lists them first.
+   - While the deployment's enqueued-token quota is full, [create](../shared/batch.py#L206) is refused at once with HTTP 400 `token_limit_exceeded` in 10 regions, and nothing is created or billed; elsewhere the job is created, validates for up to a few minutes, then fails with `token_limit_exceeded` ([Batch: queueing batch jobs](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/batch#queueing-batch-jobs)). Either way the job is created again from the same upload after 5 seconds, doubling up to 600, for up to 24 hours of waiting in one run (`quota_wait_minutes`, [QuotaBudget](../shared/batch.py#L184)), and a job that failed this way isn't a round. Then the run ends with exit code 75, keeping the upload, and running the same command again tries again.
+   - The work folder's `state.json` records the endpoint, the round and each job.
+5. **Wait.** [wait_all](../shared/batch.py#L226) polls the jobs every `--poll-seconds` (60 by default) until every one has ended, with no time limit unless you set `--max-wait-minutes` (then exit code 75, with the jobs still running). It warns if no line of a job completes or fails for `--stall-minutes`; `--cancel-on-stall` cancels that job, and records that this run cancelled it.
+6. **Collect.** [collect](../shared/batch.py#L321) reads each job's output and error files and turns each line into one row with [response_metrics](../shared/batch.py#L271): tokens, billed web search requests, search calls, and whether the answer is valid JSON.
+7. **Sort, and send again.** [sort_lines](../shared/batch.py#L355) decides what each line needs. Answered lines, and lines that failed with an error retrying can't fix, are settled: they're kept in `kept-lines.jsonl` and never sent again ([line 707](../shared/pipeline.py#L707)). Lines that failed with HTTP 408, 429 or 5xx, or that an expired job (or a job this run cancelled) never processed, go in a new batch job: round 2, then round 3 ([line 696](../shared/pipeline.py#L696)). The rounds count from the run that sent the lines, so lines sent again after a person's fix get all three again. Lines still failing after round 3, and lines of a job someone cancelled outside the run, are held ([line 698](../shared/pipeline.py#L698)). A job that failed validation ends the run with exit code 1: fix the cause and run the same command again.
+8. **Clean up.** Once a round's lines are saved, it deletes its jobs' input, output and error files in Azure OpenAI.
+9. **Results.** [write_outputs](../shared/pipeline.py#L145) writes `results.jsonl`, one answer per record in the records' order, and, if any record is held, `held-records.jsonl` ([line 733](../shared/pipeline.py#L733)). It prices the job with [actual](../shared/cost.py#L103) ([line 736](../shared/pipeline.py#L736)), deletes the local working files ([line 738](../shared/pipeline.py#L738)), and exits with 0, or 3 if records are held ([line 751](../shared/pipeline.py#L751)). `run.json` keeps the settings, every batch job's timing, the held count and the cost.
 
 What came out for the 23 sample records on gpt-5.4-mini, 31 October 2026 ([run.json](../results/2026-10-31/bounded-web-search-gpt54mini/run.json)):
 
@@ -140,9 +141,11 @@ python ../evaluation/report.py runs/bounded --out ../results/my-run
 
 | Situation | What to do |
 | --- | --- |
-| `Refusing to submit: ...` | Fix what it names: one deployment per file, unique record ids, at most 100,000 lines and 200 MB per file |
-| The command was interrupted while the job ran | Run the same command again: it finds the job in `state.json` and waits for it, without submitting again |
-| The job ended `failed`, `expired` or `cancelled` | Run the same command again: the completed lines are kept, and only the others are resubmitted |
+| `Refusing to submit: ...` | Fix what it names: one deployment per file and unique record ids. A job above 100,000 lines or 200 MB is split for you |
+| The command was interrupted while the job ran | Run the same command again: it finds the jobs in `state.json` and waits for them, without submitting again |
+| `A batch job failed validation` (exit code 1) | Fix the cause it names, and run the same command again: settled lines are kept, and only the others are sent again |
+| Exit code 75 | The enqueued-token quota stayed full, or `--max-wait-minutes` ran out: run the same command again later |
+| Records with the status `held` (exit code 3) | Lines still failing after three rounds, or in a job someone cancelled outside the run: run `held-records.jsonl` as a new job later |
 | `unrecognized arguments: --max-cost` | Option 1 has no cost cap: the model decides the search count, so only [option 2](../option-2-two-stage-web-iq/README.md) can forecast before spending |
 | `Couldn't read list prices from the Azure Retail Prices API` | No internet access, or a meter in settings.toml was renamed: pass `--prices <file>` with a table saved by `python ../shared/prices.py --save <file>` |
 | Many answers are `insufficient_evidence` | The budget is too tight for those records: send them to a second pass with a larger `--max-tool-calls`, or to a person |

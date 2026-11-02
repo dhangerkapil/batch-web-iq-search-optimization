@@ -103,7 +103,7 @@ Both reach the same Web IQ `/web` and are billed the same. The toolbox call cost
 
 *Source: [diagrams/02-job-flow.drawio](../diagrams/02-job-flow.drawio).*
 
-`run` stops before spending more at three points: before any search if the first forecast is above `--max-cost`; before submitting if any search failed; and before submitting if the exact forecast is above `--max-cost`. `--max-queries` caps searches per run (default 500) as a second guard. Re-running the same command resumes ([pipeline.py](../shared/pipeline.py) `cmd_run`).
+`run` stops before spending more at two points: before any search if the first forecast is above `--max-cost`, and before submitting if the exact forecast is above `--max-cost`. A record whose search still fails after the automatic rounds is held, not submitted, and listed in `held-records.jsonl`. A cap of 3 searches per record (`max_queries_per_record`; `--max-queries` sets an absolute cap) is a second guard against a bad plan. Re-running the same command resumes ([pipeline.py](../shared/pipeline.py) `cmd_run`).
 
 ## When the pattern doesn't fit
 

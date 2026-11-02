@@ -16,7 +16,7 @@ import pathlib
 import re
 
 SHAREABLE = ("run.json", "results.jsonl", "metrics.jsonl", "prices-used.json")
-NEVER_COPY = ("state.json", "evidence.jsonl", "batch-input.jsonl", "kept-lines.jsonl", "flex-attempts.jsonl")
+NEVER_COPY = ("state.json", "evidence.jsonl", "batch-input.jsonl", "batch-input-part.jsonl", "kept-lines.jsonl", "flex-attempts.jsonl")
 # Endpoints, local paths and resource IDs that shouldn't leave your environment. Path patterns can't match inside URLs.
 PATTERNS = [
     r"https://[a-z0-9-]+\.openai\.azure\.com",

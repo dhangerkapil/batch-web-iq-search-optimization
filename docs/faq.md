@@ -22,7 +22,7 @@ No. The Web IQ terms don't allow a database or persistent cache of content ([Web
 Minutes to hours old when the batch runs, because Batch targets a 24-hour turnaround ([Batch](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/batch)). Use the pattern for facts that change slowly.
 
 **What if Web IQ is down?**
-Web IQ has no SLA ([Web IQ FAQ](https://learn.microsoft.com/en-us/web-iq/resources/faq#does-web-iq-include-an-sla-rto-or-rpo-commitment)). A failed search stops the job before it submits anything; re-running retries only the failed searches.
+Web IQ has no SLA ([Web IQ FAQ](https://learn.microsoft.com/en-us/web-iq/resources/faq#does-web-iq-include-an-sla-rto-or-rpo-commitment)). A failed search is retried, then run again in up to three rounds. The records that use a search that still fails are held: they aren't submitted, and `held-records.jsonl` lists them to run again as a new job ([07](07-deploy-and-run.md#held-records)).
 
 **Is my data protected the same way as Azure OpenAI data?**
 No. Web IQ is outside the Data Protection Addendum and the EU Data Boundary. So is Grounding with Bing, used by the built-in web search tool ([Web IQ FAQ](https://learn.microsoft.com/en-us/web-iq/resources/faq#is-web-iq-covered-by-the-azure-data-protection-addendum-or-eu-data-boundary), [Web search](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/web-search)). Only send fields you're allowed to send; see [06](06-security-privacy-and-terms.md).

@@ -105,11 +105,15 @@ max_chars = 1200                      # characters per result (Web IQ maxLength;
 language = "en"
 qps = 5.0                             # stay under your Web IQ AppID allocation (15 per second by default, shared)
 concurrency = 5
-max_attempts = 6
-max_queries = 500                     # safety cap on searches per run
-max_retry_after_seconds = 60          # longest retry-after honoured before the next attempt
+max_attempts = 6                      # per search per round, including the first
+max_queries_per_record = 3            # safety cap on searches per run, per record (lean plans need about 1, full under 2); --max-queries sets an absolute cap
+max_retry_after_seconds = 600         # longest wait Web IQ asks for that is waited out between attempts; a search asked to wait longer waits for the next round
 backoff_cap_seconds = 30              # cap on our own exponential backoff
+auto_rounds = 3                       # rounds in all: searches still failing with HTTP 408, 429, 5xx or a network error run again
+round_waits_seconds = [60, 300]       # pause before round 2 and round 3, or longer if Web IQ asked for longer
+max_round_wait_seconds = 3600         # cap on a pause that waits out a longer wait Web IQ asked for
 http_timeout_seconds = 60
+keepalive_seconds = 120               # keep idle connections open between searches (httpx closes them after 5 s by default)
 max_query_chars = 1000                # Web IQ rejects longer queries
 
 [toolbox]
@@ -121,9 +125,15 @@ create_timeout_seconds = 120
 [batch]
 max_file_bytes = 209715200            # Learn: 200 MB per batch input file
 max_lines_per_file = 100000           # Learn: 100,000 requests per batch input file
+part_bytes = 188743680                # 180 MB: a job too big for one file is split into batch jobs of at most this size and 100,000 lines
 file_expiry_seconds = 1209600         # 14 days, the shortest expiry Learn allows for batch files
 poll_seconds = 60
 stall_minutes = 120
+max_wait_minutes = 0                  # stop waiting after this long (exit 75, the jobs keep running); 0 waits until every job ends
+max_rounds = 3                        # rounds in all: lines that failed with HTTP 408, 429 or 5xx, or weren't processed, are sent again
+quota_wait_minutes = 1440             # how long one run waits to create jobs while the enqueued-token quota is full (token_limit_exceeded), then exit 75
+quota_retry_first_seconds = 5         # first wait before creating the job again; doubled each time
+quota_retry_max_seconds = 600         # cap on that wait
 
 # Flex processing (flex-web-search-and-web-iq/flex_job.py): one synchronous Responses API request per line, with
 # service_tier "flex" (flex.py).
@@ -132,8 +142,11 @@ concurrency = 4                       # requests in flight at once; size it to t
 max_attempts = 3                      # per line per round, including the first; HTTP 408, 429 and 5xx are retried (timeouts and dropped connections are held)
 backoff_base_seconds = 10             # our first backoff wait, doubled per attempt, with jitter
 max_delay_seconds = 120               # cap on our own backoff
-max_server_wait_seconds = 600         # longest Retry-After honoured; a longer one isn't cut short: the line is left for a re-run
+max_server_wait_seconds = 600         # longest Retry-After waited out between attempts; a longer one is waited out before the next automatic round
 client_timeout_seconds = 900          # per request; Learn suggests 15 minutes for Flex
+auto_rounds = 3                       # rounds in all: lines that used up their attempts on HTTP 408, 429 or 5xx are sent again
+round_waits_seconds = [60, 300]       # pause before round 2 and round 3
+max_round_wait_seconds = 3600         # cap on a pause that waits out a longer Retry-After
 
 [forecast]
 default_output_tokens_per_line = 800  # for a model not listed below

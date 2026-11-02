@@ -29,9 +29,9 @@ From [Use Flex processing (preview)](https://learn.microsoft.com/en-us/azure/fou
 
 - **Pacing.** It sends `--flex-concurrency` requests at a time, with the SDK's own retries off, so it counts every attempt itself.
 - **The ledger.** Every attempt goes into an append-only ledger, `flex-attempts.jsonl` in the work folder: a start row, written to disk before the request leaves, then an outcome row. [report.py](../evaluation/report.py) never copies the ledger.
-- **Retries.** HTTP 408, 429 and 5xx get at most 3 attempts per line in a round. Between attempts it waits at least as long as `Retry-After` asks. If the service asks for more than 600 seconds, the line is left for a re-run instead.
-- **Used up.** A line that used all its attempts is sent again, in a new round, only with `--retry-failed`.
-- **Held.** A request that timed out, lost its connection, or was in flight when a run stopped may still have been processed and billed. Its line is held, and sent again only with `--retry-ambiguous`.
+- **Retries.** HTTP 408, 429 and 5xx get at most 3 attempts per line in a round. Between attempts it waits at least as long as `Retry-After` asks. If the service asks for more than 600 seconds, that wait is taken before the next automatic round instead, for up to an hour.
+- **Automatic rounds.** A line that used all its attempts is sent again in a second and a third round, 60 and 300 seconds later. After that it's held, and sent again only with `--retry-failed`. `--no-auto-retry` turns the rounds off.
+- **Held.** A request that timed out, lost its connection, or was in flight when a run stopped may still have been processed and billed. Its line is held, never sent again automatically, and sent again only with `--retry-ambiguous`.
 - **Stops.** HTTP 400 "Flex not supported", 401, 403 or 404, or a failed Microsoft Entra ID sign-in, stops the job: every other request would fail the same way.
 - **Other tiers.** A response processed on another tier is marked failed and isn't priced at Flex rates. Nothing falls back to Standard.
 - **Ctrl+C.** The first Ctrl+C sends nothing new, and waits for the requests in flight so their outcomes are recorded. A second Ctrl+C leaves at once, and those lines are held.
@@ -93,17 +93,31 @@ python flex_job.py run ../samples/brand-owner/records.jsonl --design two-stage -
 
 To resume, run the same command again: completed lines are never sent again. Add `--retry-failed` or `--retry-ambiguous` only when the run tells you to, and only if you accept that a held line may be paid twice. Check the answers with `python ../evaluation/evaluate.py runs/flex-bounded --labels ../samples/brand-owner/labels.jsonl`.
 
+### Exit codes
+
+Every `run` ends with one of these codes ([Run it unattended](../docs/07-deploy-and-run.md#run-it-unattended)). Held records are also listed in `held-records.jsonl`, in the input format, to run again as a new job.
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Done: every line was answered, or failed for good with an error retrying can't fix (listed in `results.jsonl`) |
+| `1` | Needs a person: bad input, a deployment without Flex, sign-in or permissions, a `--max-cost` forecast, or every record held because searches failed with an error such as 401 or 403. Fix it and run the same command again |
+| `3` | Finished, with lines held: they used up their attempts in every round (`--retry-failed` sends them again), or their outcome is unknown (`--retry-ambiguous`), or their searches still failed. The working files are kept for the flags |
+| `75` | A line is still asked to wait, or `--no-auto-retry` left work for a re-run: run the same command again later |
+| `130` | Interrupted with Ctrl+C: run the same command again to resume |
+
 ## Settings that matter
 
 All in [shared/settings.toml](../shared/settings.toml). A command-line option overrides a value for one run. If you use your own copy of the file (`SEARCH_THEN_BATCH_SETTINGS`), it needs the `[flex]` section.
 
 | Setting | Line | Default |
 | --- | --- | --- |
-| `[flex] concurrency` (`--flex-concurrency`) | [131](../shared/settings.toml#L131) | `4` |
-| `[flex] max_attempts`: per line, per round | [132](../shared/settings.toml#L132) | `3` |
-| `[flex] backoff_base_seconds` and `max_delay_seconds`: our own backoff | [133](../shared/settings.toml#L133), [134](../shared/settings.toml#L134) | `10`, doubling up to `120` |
-| `[flex] max_server_wait_seconds`: the longest `Retry-After` waited out | [135](../shared/settings.toml#L135) | `600` |
-| `[flex] client_timeout_seconds`: Learn suggests 15 minutes | [136](../shared/settings.toml#L136) | `900` |
+| `[flex] concurrency` (`--flex-concurrency`) | [141](../shared/settings.toml#L141) | `4` |
+| `[flex] max_attempts`: per line, per round | [142](../shared/settings.toml#L142) | `3` |
+| `[flex] backoff_base_seconds` and `max_delay_seconds`: our own backoff | [143](../shared/settings.toml#L143), [144](../shared/settings.toml#L144) | `10`, doubling up to `120` |
+| `[flex] max_server_wait_seconds`: the longest `Retry-After` waited out between attempts; a longer one is waited out before the next automatic round | [145](../shared/settings.toml#L145) | `600` |
+| `[flex] client_timeout_seconds`: Learn suggests 15 minutes | [146](../shared/settings.toml#L146) | `900` |
+| `[flex] auto_rounds` and `round_waits_seconds`: rounds in all for lines that used up their attempts, and the pauses before rounds 2 and 3 | [147](../shared/settings.toml#L147), [148](../shared/settings.toml#L148) | `3`, `[60, 300]` |
+| `[flex] max_round_wait_seconds`: the longest pause that waits out a `Retry-After` | [149](../shared/settings.toml#L149) | `3600` |
 | The gpt-6-sol Flex meters, including cache writes | [60](../shared/settings.toml#L60) | Read live |
 
 ## Files

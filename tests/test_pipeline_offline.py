@@ -31,6 +31,9 @@ class FakeOpenAI:
         self.files = SimpleNamespace(create=self._create, retrieve=lambda fid: SimpleNamespace(status="processed"), delete=self._delete, content=self._content)
         self.batches = SimpleNamespace(create=self._batch, retrieve=lambda bid: self.batches_by_id[bid], cancel=lambda bid: None)
 
+    def with_options(self, **options):
+        return self
+
     def _create(self, file, purpose, extra_body=None):
         assert extra_body == {"expires_after": batchlib.EXPIRES_AFTER}
         fid = f"file-{len(self.store)}-{len(self.submitted)}"
@@ -64,7 +67,7 @@ def run_args(tmp_path, records_file):
         workdir=str(tmp_path / "work"), label=None, deployment="dep", price_model="gpt-5.4-mini", prices=None,
         reasoning_effort="low", max_output_tokens=8000, max_tool_calls=2, output_tokens_per_line=None, max_cost=None,
         base_url="https://example.invalid/openai/v1/", subscription=None, poll_seconds=0, stall_minutes=120,
-        cancel_on_stall=False, keep_working_files=False,
+        cancel_on_stall=False, keep_working_files=False, max_wait_minutes=0, no_auto_retry=False,
     )
 
 
@@ -79,15 +82,17 @@ def test_cancelled_batch_keeps_completed_lines_and_resubmits_only_the_rest(tmp_p
     fake = FakeOpenAI([("cancelled", 2), ("completed", 1)])
     monkeypatch.setattr(batchlib, "make_client", lambda *a, **k: fake)
     a = run_args(tmp_path, records_file)
+    a.no_auto_retry = True  # the manual flow: the re-run resubmits the rest, whoever cancelled the job
     work = tmp_path / "work"
 
-    with pytest.raises(SystemExit, match="cancelled"):
+    with pytest.raises(SystemExit, match="cancelled") as ended:
         cmd_run(a)
+    assert ended.value.code == 75  # re-run the same command
     run = json.loads((work / "run.json").read_text(encoding="utf-8"))
-    assert run["status"] == "batch cancelled" and run["incomplete_batches"][0]["lines_kept"] == 2
-    assert not (work / "state.json").exists() and (work / "kept-lines.jsonl").exists()
+    assert run["status"] == "batch round ended" and run["batches"][0]["status"] == "cancelled"
+    assert not (work / "state.json").exists() and len((work / "kept-lines.jsonl").read_text(encoding="utf-8").splitlines()) == 2
 
-    cmd_run(a)
+    assert cmd_run(a) == 0
     assert fake.submitted == [["R0", "R1", "R2"], ["R2"]]  # the re-run submits only the line that didn't complete
     run = json.loads((work / "run.json").read_text(encoding="utf-8"))
     assert run["status"] == "done"
@@ -105,6 +110,7 @@ def test_a_resumed_job_keeps_the_prices_it_started_with(tmp_path, monkeypatch, c
     fake = FakeOpenAI([("cancelled", 2), ("completed", 1)])
     monkeypatch.setattr(batchlib, "make_client", lambda *a, **k: fake)
     a = run_args(tmp_path, records_file)
+    a.no_auto_retry = True  # the job is resumed by a second run, priced as it started
     work = tmp_path / "work"
     with pytest.raises(SystemExit, match="cancelled"):
         cmd_run(a)

@@ -7,7 +7,9 @@ the shared job runner, pipeline.py. Every default comes from settings.toml.
 from __future__ import annotations
 
 import argparse
+import sys
 
+import exits
 from prices import PRICES_FILE_ENV
 from settings import SETTINGS
 
@@ -59,15 +61,24 @@ def forecast(p) -> None:
 
 
 def job(p, *, batch: bool) -> None:
-    """run: the work folder and the endpoint; for Global Batch, how to wait for the job."""
+    """run: the work folder and the endpoint; for Global Batch, how to wait for the jobs."""
     p.add_argument("--workdir", required=True, help="folder for this job's state, results and working files")
     p.add_argument("--label")
     p.add_argument("--base-url", required=True, help="Azure OpenAI v1 endpoint: https://<resource>.openai.azure.com/openai/v1/")
     if batch:
         p.add_argument("--poll-seconds", type=int, default=int(_B["poll_seconds"]))
-        p.add_argument("--stall-minutes", type=int, default=int(_B["stall_minutes"]), help="warn when no line completes or fails for this long")
-        p.add_argument("--cancel-on-stall", action="store_true")
+        p.add_argument("--stall-minutes", type=int, default=int(_B["stall_minutes"]), help="warn when no line of a job completes or fails for this long")
+        p.add_argument("--cancel-on-stall", action="store_true", help="cancel a job that stalls; its unanswered lines are sent again in a new job")
+        p.add_argument("--max-wait-minutes", type=float, default=float(_B["max_wait_minutes"]),
+                       help="stop waiting after this long, with exit code 75; the jobs keep running, and the same command, run "
+                            "again, collects them (default 0: wait until every job ends)")
     p.add_argument("--keep-working-files", action="store_true", help="keep evidence.jsonl and batch-input.jsonl (they hold Web IQ content)")
+    auto_retry(p)
+
+
+def auto_retry(p) -> None:
+    p.add_argument("--no-auto-retry", action="store_true",
+                   help="no automatic rounds: failed searches and lines wait for a re-run of the same command (Flex: with --retry-failed)")
 
 
 def subscription(p) -> None:
@@ -82,13 +93,23 @@ def flex(p) -> None:
     p.add_argument("--flex-concurrency", type=int, default=int(_X["concurrency"]),
                    help="requests in flight at once; size it to the deployment's tokens-per-minute quota")
     p.add_argument("--retry-failed", action="store_true",
-                   help="send lines that used up their attempts (HTTP 408, 429, 5xx) again, in a new round")
+                   help="send lines again that used up their attempts in every automatic round (HTTP 408, 429, 5xx), in a new round")
     p.add_argument("--retry-ambiguous", action="store_true",
                    help="send lines again whose request timed out, lost its connection, or was in flight when an earlier run "
                         "stopped (it may have been processed and billed)")
 
 
 def run(ap) -> None:
-    """Parse the command line and run the chosen command."""
+    """Parse the command line, run the chosen command, and exit with a code of the contract in exits.py: 0 done, 1 needs
+    a person, 3 records held, 75 re-run the same command later, 130 interrupted."""
     a = ap.parse_args()
-    a.fn(a)
+    try:
+        code = a.fn(a)
+    except exits.Exit as ex:
+        print(ex.message, file=sys.stderr)
+        raise SystemExit(ex.code) from None
+    except KeyboardInterrupt:
+        print("Interrupted (Ctrl+C). Run the same command again to resume.", file=sys.stderr)
+        raise SystemExit(exits.INTERRUPTED) from None
+    if code:
+        raise SystemExit(code)

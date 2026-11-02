@@ -108,10 +108,13 @@ def actual(rows: list[dict], *, records: int, prices: dict, price_model: str, we
     Web IQ pricing page doesn't say whether they're billed. `rows` include lines kept from earlier batches of the same
     job that didn't complete, since those lines were billed too. Where the rates include a cache-write rate, written
     prompt-cache tokens are priced at it instead of the input rate (an assumption, see prices.line_cost);
-    usd.total_if_cache_writes_billed_on_top shows the total if they turn out to be billed on top of input.
+    usd.total_if_cache_writes_billed_on_top shows the total if they turn out to be billed on top of input. Held rows
+    (status "held": records not sent to the model, or lines not answered after the automatic rounds) are counted in
+    lines_held, not priced, and left out of usd_per_1000_records (None if every record is held).
     """
     rates = model_rates(prices, price_model, tier)
-    billed = [r for r in rows if r.get("status") not in (None, "error")]
+    billed = [r for r in rows if r.get("status") not in (None, "error", "held")]
+    held = sum(1 for r in rows if r.get("status") == "held")
     sums = {k: sum((r.get(k) or 0) for r in billed) for k in ("input_tokens", "cached_tokens", "cache_write_tokens", "output_tokens", "reasoning_tokens", "web_search_requests", "web_search_calls")}
     cost = {"input": 0.0, "output": 0.0, "web_search": 0.0}
     for r in billed:
@@ -134,6 +137,7 @@ def actual(rows: list[dict], *, records: int, prices: dict, price_model: str, we
         "records": records,
         "lines_with_usage": len(billed),
         "lines_failed": sum(1 for r in rows if r.get("status") == "error") + max(0, records - len(rows)),
+        "lines_held": held,
         "json_valid": sum(1 for r in billed if r.get("json_valid")),
         "per_record_mean": {
             "input_tokens": round(sums["input_tokens"] / n, 1),
@@ -147,7 +151,7 @@ def actual(rows: list[dict], *, records: int, prices: dict, price_model: str, we
         },
         "totals": sums | {"webiq_calls": webiq_calls},
         "usd": usd,
-        "usd_per_1000_records": round(total / max(1, records) * 1000, 2),
+        "usd_per_1000_records": round(total / (records - held) * 1000, 2) if records > held else None,
         "search_share_of_cost": round((cost["web_search"] + webiq) / total, 3) if total else None,
         "prices": {"model": price_model, "tier": tier, "source": prices["models"][price_model].get("source"),
                "retrieved_utc": prices.get("retrieved_utc"), "rates": {k: v for k, v in rates.items()},

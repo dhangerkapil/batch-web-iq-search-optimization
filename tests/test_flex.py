@@ -110,6 +110,14 @@ def waits(monkeypatch):
     return seen
 
 
+@pytest.fixture(autouse=True)
+def pauses(monkeypatch):
+    """Automatic rounds don't really pause: the pauses are recorded instead."""
+    seen = []
+    monkeypatch.setattr(flex, "_pause", seen.append)
+    return seen
+
+
 def test_each_line_is_sent_once_on_the_flex_tier_and_recorded_before_and_after(tmp_path):
     fake = FakeFlex()
     out = flex.run_lines(lines("B", "A", "C"), tmp_path, deployment="flex-dep", client=fake)
@@ -168,7 +176,7 @@ def test_a_timeout_or_dropped_connection_holds_the_line_and_the_others_carry_on(
     assert flex.line_state([r for r in flex.read_ledger(tmp_path) if r["custom_id"] == "B"], 3)["state"] == "held"
     assert out["summary"]["lines"] == {"total": 3, "completed": 2, "failed": 0, "used_up": 0, "held_in_flight": 1, "not_finished": 0}
     assert out["summary"]["attempts"]["unknown_charges"] == 1 and out["summary"]["attempts"]["by_http_status"][kind] == 1
-    assert out["rows"][1]["status"] == "error" and "--retry-ambiguous" in out["rows"][1]["error"]
+    assert out["rows"][1]["status"] == "held" and "--retry-ambiguous" in out["rows"][1]["error"]
     flex.run_lines(lines("A", "B", "C"), tmp_path, deployment="d", client=fake)
     flex.run_lines(lines("A", "B", "C"), tmp_path, deployment="d", client=fake, retry_failed=True)
     assert fake.calls == ["A", "B", "C"]  # held: neither a plain re-run nor --retry-failed sends it again
@@ -180,7 +188,7 @@ def test_a_timeout_or_dropped_connection_holds_the_line_and_the_others_carry_on(
 
 def test_a_longer_retry_after_than_the_cap_isnt_cut_short_the_line_is_left_for_a_rerun(tmp_path, waits):
     fake = FakeFlex({"A": [http_error(429, "busy", {"retry-after": "3600"})]})
-    out = flex.run_lines(lines("A"), tmp_path, deployment="d", client=fake)
+    out = flex.run_lines(lines("A"), tmp_path, deployment="d", client=fake, auto_rounds=1)  # no automatic round to wait for
     assert fake.calls == ["A"] and waits == []
     assert out["summary"]["lines"]["not_finished"] == 1 and "left for a re-run after 20" in out["rows"][0]["error"]
     out = flex.run_lines(lines("A"), tmp_path, deployment="d", client=fake)  # a plain re-run continues the round
@@ -236,21 +244,21 @@ def test_a_rerun_skips_completed_lines_and_holds_a_request_that_was_in_flight(tm
     assert "1 held because a request's outcome is unknown" in capsys.readouterr().out
     assert out["summary"]["lines"]["held_in_flight"] == 1 and out["summary"]["attempts"]["held_in_flight"] == 1
     assert out["summary"]["attempts"]["by_http_status"]["no_outcome"] == 1
-    assert out["rows"][1]["status"] == "error" and "--retry-ambiguous" in out["rows"][1]["error"]
+    assert out["rows"][1]["status"] == "held" and "--retry-ambiguous" in out["rows"][1]["error"]
     out = flex.run_lines(lines("A", "B", "C"), tmp_path, deployment="d", client=fake, retry_ambiguous=True)
     assert fake.calls == ["A", "C", "B"] and [r["status"] for r in out["rows"]] == ["completed"] * 3
     assert [(r["round"], r["attempt"]) for r in ledger(tmp_path, "start") if r["custom_id"] == "B"] == [(1, 1), (2, 1)]
     assert out["summary"]["attempts"]["unknown_charges"] == 1  # the request with no outcome: counted, not priced
 
 
-def test_a_line_that_used_up_its_attempts_is_sent_again_only_with_retry_failed(tmp_path, waits):
+def test_without_automatic_rounds_a_used_up_line_is_sent_again_only_with_retry_failed(tmp_path, waits):
     fake = FakeFlex({"A": [http_error(429, "busy") for _ in range(3)]})
-    out = flex.run_lines(lines("A"), tmp_path, deployment="d", client=fake)
+    out = flex.run_lines(lines("A"), tmp_path, deployment="d", client=fake, auto_rounds=1)
     assert fake.calls == ["A"] * 3 and len(waits) == 2 and out["summary"]["lines"]["used_up"] == 1
-    assert "--retry-failed" in out["rows"][0]["error"]
-    flex.run_lines(lines("A"), tmp_path, deployment="d", client=fake)
+    assert out["rows"][0]["status"] == "held" and "--retry-failed" in out["rows"][0]["error"]
+    flex.run_lines(lines("A"), tmp_path, deployment="d", client=fake, auto_rounds=1)
     assert len(fake.calls) == 3  # held
-    out = flex.run_lines(lines("A"), tmp_path, deployment="d", client=fake, retry_failed=True)
+    out = flex.run_lines(lines("A"), tmp_path, deployment="d", client=fake, retry_failed=True, auto_rounds=1)
     assert len(fake.calls) == 4 and out["rows"][0]["status"] == "completed"
     assert [(r["round"], r["attempt"]) for r in ledger(tmp_path, "start")] == [(1, 1), (1, 2), (1, 3), (2, 1)]
     assert out["summary"]["attempts"]["not_billed_429"] == 3
@@ -440,18 +448,19 @@ def test_run_stops_with_a_message_naming_a_deployment_without_flex(tmp_path, fle
 
 def test_a_flex_job_with_lines_left_isnt_done_until_they_complete(tmp_path, flex_only, waits):
     flex_only(FakeFlex({"R1": [http_error(429, "busy") for _ in range(3)]}))
-    a = run_args(tmp_path, "bounded-web-search")
-    with pytest.raises(SystemExit, match="--retry-failed"):
-        cmd_run(a)
+    a = run_args(tmp_path, "bounded-web-search", no_auto_retry=True)  # the manual flow: no automatic rounds
+    assert cmd_run(a) == 3  # held: R1 used up its attempts
     work = tmp_path / "work"
     run = read_run(work)
     assert run["status"] == "flex incomplete" and run["flex"]["lines"]["used_up"] == 1
     assert run["actual"]["lines_with_usage"] == 2 and (work / "batch-input.jsonl").exists()
+    assert [json.loads(x)["id"] for x in (work / "held-records.jsonl").read_text(encoding="utf-8").splitlines()] == ["R1"]
     a.retry_failed = True
-    cmd_run(a)
+    assert cmd_run(a) == 0
     run = read_run(work)
     assert run["status"] == "done" and run["actual"]["lines_with_usage"] == 3 and len(run["flex_sessions"]) == 2
     assert run["flex"]["attempts"]["not_billed_429"] == 3 and run["flex"]["attempts"]["requests"] == 6
+    assert not (work / "held-records.jsonl").exists() and run["held"]["records"] == 0
 
 
 def test_batch_and_flex_jobs_dont_share_a_work_folder(tmp_path):
@@ -464,3 +473,51 @@ def test_batch_and_flex_jobs_dont_share_a_work_folder(tmp_path):
     (work / flex.LEDGER).write_text("", encoding="utf-8")
     with pytest.raises(SystemExit, match="holds a Flex job"):
         cmd_run(run_args(tmp_path, "bounded-web-search", executor="batch"))
+
+
+# ---------- automatic rounds ----------
+
+
+def test_lines_that_used_up_their_attempts_are_sent_again_in_automatic_rounds(tmp_path, waits, pauses, capsys):
+    fake = FakeFlex({"A": [http_error(429, "busy") for _ in range(6)]})
+    out = flex.run_lines(lines("A", "B"), tmp_path, deployment="d", client=fake, concurrency=1)
+    assert fake.calls.count("A") == 7 and [r["status"] for r in out["rows"]] == ["completed", "completed"]
+    assert pauses == [60, 300]  # round_waits_seconds, before round 2 and round 3
+    assert [(r["round"], r["attempt"]) for r in ledger(tmp_path, "start") if r["custom_id"] == "A"] == [
+        (1, 1), (1, 2), (1, 3), (2, 1), (2, 2), (2, 3), (3, 1)]
+    assert "Flex, automatic round 2 of 3: 1 lines" in capsys.readouterr().out
+    assert out["summary"]["attempts"]["not_billed_429"] == 6 and out["summary"]["auto_rounds"] == 3
+
+
+def test_after_the_automatic_rounds_a_line_is_held_until_retry_failed(tmp_path, waits, pauses):
+    fake = FakeFlex({"A": [http_error(503, "busy") for _ in range(9)]})
+    out = flex.run_lines(lines("A"), tmp_path, deployment="d", client=fake)
+    assert len(fake.calls) == 9 and out["rows"][0]["status"] == "held" and out["summary"]["lines"]["used_up"] == 1
+    assert "round 3" in out["rows"][0]["error"]
+    flex.run_lines(lines("A"), tmp_path, deployment="d", client=fake)
+    assert len(fake.calls) == 9  # it has had its 3 rounds: a plain re-run doesn't send it
+    out = flex.run_lines(lines("A"), tmp_path, deployment="d", client=fake, retry_failed=True)
+    assert len(fake.calls) == 10 and out["rows"][0]["status"] == "completed"
+
+
+def test_a_long_retry_after_is_waited_out_before_the_next_automatic_round(tmp_path, waits, pauses):
+    fake = FakeFlex({"A": [http_error(429, "busy", {"retry-after": "7200"})]})
+    out = flex.run_lines(lines("A"), tmp_path, deployment="d", client=fake)
+    assert fake.calls == ["A", "A"] and out["rows"][0]["status"] == "completed" and waits == []
+    assert pauses == [3600]  # what was left of the 7,200 s, capped at max_round_wait_seconds
+    assert [(r["round"], r["attempt"]) for r in ledger(tmp_path, "start")] == [(1, 1), (1, 2)]  # its round, continued
+
+
+def test_a_flex_run_ends_with_the_exit_code_of_what_is_left(tmp_path, flex_only, waits, pauses):
+    flex_only(FakeFlex({"R1": [http_error(429, "busy", {"retry-after": "7200"})]}))
+    with pytest.raises(SystemExit, match="Re-run the same command later") as ended:
+        cmd_run(run_args(tmp_path, "bounded-web-search", no_auto_retry=True))
+    assert ended.value.code == 75 and pauses == []  # asked to wait 2 hours, with no automatic round to wait it out in
+    assert read_run(tmp_path / "work")["status"] == "flex incomplete"
+    flex_only(FakeFlex({"R1": [http_error(429, "busy", {"retry-after": "7200"}) for _ in range(3)]}))
+    assert cmd_run(run_args(tmp_path, "bounded-web-search", workdir=str(tmp_path / "held"))) == 3
+    assert pauses == [3600, 3600]  # waited out, up to an hour, before rounds 2 and 3; then its 3 attempts were used up
+    flex_only(FakeFlex({"R0": [http_error(401, "no access")]}))
+    with pytest.raises(SystemExit, match="Sign in again") as ended:
+        cmd_run(run_args(tmp_path, "bounded-web-search", workdir=str(tmp_path / "denied")))
+    assert ended.value.code == 1  # needs a person

@@ -71,6 +71,16 @@ python ../evaluation/evaluate.py runs/bounded --labels ../samples/brand-owner/la
 
 `--design web-search` builds or runs the same lines without the caps, to measure a job as it runs today.
 
+`run` is built to run unattended. It splits a job above the batch file limits into several batch jobs, waits while the deployment's enqueued-token quota is full (whether the region refuses the create at once or the job fails after validating), waits until every job ends (or for `--max-wait-minutes`), and sends lines that failed with HTTP 408, 429 or 5xx, or that an expired job never processed, again in up to three rounds. Lines it still can't answer are held and listed in `held-records.jsonl`, in the input format, to run again as a new job. `--no-auto-retry` turns the rounds off. [Run it unattended](../docs/07-deploy-and-run.md#run-it-unattended) has the details, and every `run` ends with one of these exit codes:
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Done: every line was answered, or failed for good with an error retrying can't fix (listed in `results.jsonl`) |
+| `1` | Needs a person: bad input, sign-in or permissions, or a batch job that failed validation. Fix it and run the same command again |
+| `3` | Finished, with records held after the automatic rounds: run `held-records.jsonl` as a new job later |
+| `75` | Still running, waiting for quota, or a create whose answer was lost couldn't be checked yet: run the same command again later |
+| `130` | Interrupted with Ctrl+C: run the same command again to resume |
+
 ## Settings that matter
 
 All in [shared/settings.toml](../shared/settings.toml). A command-line option overrides a value for one run.
@@ -80,6 +90,10 @@ All in [shared/settings.toml](../shared/settings.toml). A command-line option ov
 | `[defaults] max_tool_calls` (`--max-tool-calls`) | [90](../shared/settings.toml#L90) | `2` |
 | `[defaults] reasoning_effort` (`--reasoning-effort`) | [88](../shared/settings.toml#L88) | `"low"` |
 | `[defaults] max_output_tokens` (`--max-output-tokens`) | [89](../shared/settings.toml#L89) | `8000` |
+| `[batch] max_rounds`: rounds in all for lines that failed with HTTP 408, 429 or 5xx, or weren't processed | [133](../shared/settings.toml#L133) | `3` |
+| `[batch] part_bytes`: where a job above the file limits is split | [128](../shared/settings.toml#L128) | 180 MB (and 100,000 lines) |
+| `[batch] quota_wait_minutes`: how long to wait while the enqueued-token quota is full | [134](../shared/settings.toml#L134) | `1440` |
+| `[batch] max_wait_minutes` (`--max-wait-minutes`): when to stop waiting, with exit code 75 | [132](../shared/settings.toml#L132) | `0`: until every job ends |
 | The Bing meter that prices the searches | [70](../shared/settings.toml#L70) | Grounding with Bing, Search Transactions, read live from the Azure Retail Prices API |
 
 ## Files

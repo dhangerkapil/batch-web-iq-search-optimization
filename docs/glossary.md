@@ -16,7 +16,7 @@
 | **Record** | One item to check: a JSON object with a unique `id` ([samples/brand-owner/records.jsonl](../samples/brand-owner/records.jsonl)) |
 | **Workload** | The record-specific code: searches, prompt, schema and how to read decisions back ([workloads](../shared/workloads/__init__.py)) |
 | **Fact** | One thing the answer depends on. The sample has two per record: `brand_owner` and `owner_hq` |
-| **Job** | One `run` over a records file: the plan, the searches and one or more batches. If a batch ends `failed`, `expired` or `cancelled`, running the same command again resubmits only the lines that didn't complete. The job finishes when a batch completes ([07](07-deploy-and-run.md)) |
+| **Job** | One `run` over a records file: the plan, the searches and one or more batch jobs, in up to three rounds. Lines that failed with an error that may pass, or that a batch job never processed, are sent again in the next round; running the same command again resumes and never sends an answered line again. The job finishes when every line is answered, failed for good or held ([07](07-deploy-and-run.md#run-it-unattended)) |
 | **Search plan** | Every unique search a job needs, with the records that use each one ([search_plan.py](../option-2-two-stage-web-iq/search_plan.py)) |
 | **Shared search** | A search that more than one record uses, run once per job |
 | **Full plan / lean plan** | Full runs every search template for every record. Lean skips searches that a confirmed business rule makes unnecessary |
@@ -26,7 +26,9 @@
 | **Design** | Which lines a job sends, as recorded in `run.json` and the result folders: `two-stage` (option 2), `bounded-web-search` (option 1) or `web-search` (the model searches with no caps; option 1's script with `--design web-search`, to measure a job as it runs today). `flex_job.py` takes `--design bounded-web-search` or `--design two-stage` |
 | **Executor** | Where the lines run, as recorded in `run.json`: `batch`, one Global Batch job (`bounded_web_search.py` and `two_stage.py`), or `flex`, one synchronous request per line with Flex processing (`flex_job.py`) |
 | **Flex processing** | A preview processing tier at about half the Standard token price, selected per request with `service_tier: "flex"` on a Global Standard deployment of a supported model. No SLA; HTTP 429 when capacity isn't available ([Flex processing](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/flex-processing)) |
-| **Held line** | A Flex line a plain re-run doesn't send again: its attempts are used up (`--retry-failed` resends it), or its request may have been processed and billed without an answer arriving (`--retry-ambiguous` resends it) |
+| **Held line** | A Flex line a plain re-run doesn't send again: its attempts are used up in every automatic round (`--retry-failed` resends it), or its request may have been processed and billed without an answer arriving (`--retry-ambiguous` resends it) |
+| **Held record** | A record a job couldn't answer but might later: a search it needs still failed, its line still failed after the last round, or its batch job was cancelled outside the run. Status `held` in `results.jsonl`, and listed in `held-records.jsonl` to run as a new job ([07](07-deploy-and-run.md#held-records)) |
+| **Exit code** | How every `run` ends: 0 done, 1 needs a person, 3 records held, 75 run the same command again later, 130 interrupted ([07](07-deploy-and-run.md#exit-codes)) |
 | **Status** | A fact's decision: `verified`, `contradicted` or `insufficient_evidence` |
 | **Forecast** | The expected cost before spending: before searching (estimated input tokens) and before submitting (exact input tokens) |
 | **Search share of cost** | Search spend (Bing requests or Web IQ calls) divided by the job's total cost |

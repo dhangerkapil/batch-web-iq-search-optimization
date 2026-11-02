@@ -39,7 +39,7 @@ Prices: Azure Retail Prices API, retrieved 2026-11-01T23:53:19+00:00
 In order:
 
 1. [main](two_stage.py#L31) defines the `plan` command and fixes the design to `two-stage`.
-2. [cmd_plan](../shared/pipeline.py#L156) loads the records, as in option 1, and calls [build_plan](search_plan.py#L21).
+2. [cmd_plan](../shared/pipeline.py#L238) loads the records, as in option 1, and calls [build_plan](search_plan.py#L21).
 3. For each record, [searches](../shared/workloads/brand_owner.py#L84) returns up to two searches:
    - `<brand> brand owner`, with the record's market as the region;
    - `<claimed_owner> headquarters`, with no region. A headquarters is the same fact in every market, so one search serves every record with that owner: `PepsiCo, Inc. headquarters` serves R01 to R05.
@@ -53,7 +53,7 @@ In order:
 
 ## Step 2 - Give stage 1 access to Web IQ
 
-Stage 1 reaches Web IQ in one of two ways ([make_client](webiq.py#L193)):
+Stage 1 reaches Web IQ in one of two ways ([make_client](webiq.py#L229)):
 
 | `--via` | How it authenticates | Use it when |
 | --- | --- | --- |
@@ -70,7 +70,7 @@ python toolbox.py test --project-endpoint https://<resource>.services.ai.azure.c
 
 - [cmd_create](toolbox.py#L43) creates a toolbox with one MCP tool: Web IQ's `web` tool, using the connection's key, with approval set to `never` because a batch job has no one to approve calls. It refuses to overwrite a toolbox that already exists, and prints the consumer endpoint to pass as `--toolbox-url`.
 - [cmd_test](toolbox.py#L91) makes one search, which is billed as one Web IQ call. On 1 November 2026 it printed `Tool 'webiq___web' returned 3 results in 0.4s (one billable Web IQ call)`.
-- The [ToolboxClient](webiq.py#L126) finds the tool's name with `tools/list` rather than assuming it: the toolbox adds the server label as a prefix (`webiq___web` above).
+- The [ToolboxClient](webiq.py#L155) finds the tool's name with `tools/list` rather than assuming it: the toolbox adds the server label as a prefix (`webiq___web` above).
 
 ## Step 3 - Stage 1: run the searches
 
@@ -81,14 +81,15 @@ python two_stage.py search ../samples/brand-owner/records.jsonl --plan lean --ou
     --toolbox-url "https://<resource>.services.ai.azure.com/api/projects/<project>/toolboxes/webiq-search/mcp?api-version=v1"
 ```
 
-[cmd_search](../shared/pipeline.py#L180) builds the plan and calls [run_searches](webiq.py#L343). In [_run](webiq.py#L298):
+[cmd_search](../shared/pipeline.py#L262) builds the plan and calls [run_searches](webiq.py#L447). In [_run](webiq.py#L381):
 
-1. **Resume.** It reads the searches that already succeeded in the evidence file ([_read_done](webiq.py#L262)) and runs only the others. A run that was interrupted doesn't pay for the same search twice.
-2. **Safety cap.** It refuses to start if more than `--max-queries` searches are left to run (500 by default, [line 303](webiq.py#L303)).
-3. **Request.** [search_args](webiq.py#L201) builds each request: the query, the region if any, 5 results (`maxResults`), passages of at most 1,200 characters (`contentFormat: passage`, `maxLength`), English, and strict SafeSearch.
-4. **Rate.** The [RateLimiter](webiq.py#L37) spaces calls at `--qps`, 5 a second by default, with up to 5 in flight. Web IQ allows 15 a second by default for each AppID, shared by everything that uses it, so stay below your own limit.
-5. **Retries.** [_one](webiq.py#L230) tries each search up to 6 times. It retries HTTP 408, 429, 500, 502, 503 and 504, network errors, and a 401 (with Entra ID, after dropping the cached token, so the next attempt gets a new one). Any other status, such as a 400 for a bad query, fails the search at once. [_backoff](webiq.py#L221) waits as long as a `Retry-After` header asks, up to 60 seconds, or otherwise 2, 4, 8... seconds, capped at 30, plus up to a second of random jitter.
-6. **Saving.** Each search is appended to the evidence file as soon as it finishes ([line 312](webiq.py#L312)). At the end, the file is rewritten with one entry per planned search, through a temporary file, so an interruption can't lose the searches already saved.
+1. **Resume.** It reads the searches that already succeeded in the evidence file ([_read_done](webiq.py#L324)) and runs only the others. A run that was interrupted doesn't pay for the same search twice.
+2. **Safety cap.** It refuses to start if more searches are left to run than 3 per record (`max_queries_per_record`, [query_cap](webiq.py#L360)); `--max-queries` sets an absolute cap instead. The cap grows with the job, so it doesn't stop a large job at the start, but it does stop a search template that varies more than intended ([line 387](webiq.py#L387)).
+3. **Request.** [search_args](webiq.py#L237) builds each request: the query, the region if any, 5 results (`maxResults`), passages of at most 1,200 characters (`contentFormat: passage`, `maxLength`), English, and strict SafeSearch.
+4. **Rate.** The [RateLimiter](webiq.py#L62) spaces calls at `--qps`, 5 a second by default, with up to 5 in flight. Web IQ allows 15 a second by default for each AppID, shared by everything that uses it, so stay below your own limit. Idle connections stay open for 120 seconds (`keepalive_seconds`, [line 403](webiq.py#L403)): measured on 2 November 2026 through a toolbox, a search after 6 seconds or more idle took 1.6-1.9 seconds with the HTTP client's default 5-second keep-alive, which reconnected each time, and 0.38-0.49 seconds with the connection kept open.
+5. **Retries.** [_one](webiq.py#L282) tries each search up to 6 times. It retries HTTP 408, 429, 500, 502, 503 and 504, and network errors. Any other status fails the search at once and isn't sent again in a later round: a 400 for a bad query, or a 401 or 403 for a wrong key or missing access. (A 401 from the toolbox itself, or from the REST API with Entra ID, first gets one more try with a new token.) [_backoff](webiq.py#L265) waits as long as Web IQ asks, in full, or otherwise 2, 4, 8... seconds, capped at 30, plus up to a second of random jitter; a search asked to wait longer than 600 seconds isn't tried again in that round, and the next round's pause waits it out. The wait isn't always in a `Retry-After` header. Over REST, Web IQ puts it in the 429's body, `"retryAfter": "60s"` ([line 134](webiq.py#L134)). A Foundry toolbox relays Web IQ's 429 as an HTTP 200 response whose JSON-RPC message holds an error (code `-32008`) saying `Response status code does not indicate success: 429 (Too Many Requests)` and `Retry after: 60s`. Other Web IQ errors probably arrive the same way, with their own status in that sentence, though only the 429 has been seen live. The [ToolboxClient](webiq.py#L155) reads the status, and for a 429 the wait, from the full text ([relayed_status](webiq.py#L51), [line 212](webiq.py#L212)), and treats an error that names no status as a 502.
+6. **Rounds.** Searches that still failed with HTTP 408, 429 or 5xx, or a network error, run again in round 2 and round 3, after 60 and 300 seconds, or after the wait Web IQ asked for if that's longer, up to an hour ([line 417](webiq.py#L417)). `--no-auto-retry` turns the rounds off.
+7. **Saving.** Each search is appended to the evidence file as soon as it finishes ([line 404](webiq.py#L404)). At the end, the file is rewritten with one entry per planned search, through a temporary file, so an interruption can't lose the searches already saved.
 
 What came out on 31 October, through the toolbox ([run.json](../results/2026-10-31/two-stage-lean-gpt54mini/run.json)): 26 searches in 32.5 seconds, none failed, 5 results each, 0.74 seconds per search on average.
 
@@ -101,7 +102,7 @@ python two_stage.py build ../samples/brand-owner/records.jsonl --plan lean --evi
     --deployment <Global Batch deployment> --out two-stage.jsonl
 ```
 
-[cmd_build](../shared/pipeline.py#L191) refuses an evidence file with a failed search, and [build_lines](../shared/pipeline.py#L122) refuses a record with no evidence. Then, for each record, [two_stage_line](two_stage_lines.py#L40) writes one line:
+[cmd_build](../shared/pipeline.py#L273) refuses an evidence file with a failed search, and [build_lines](../shared/pipeline.py#L204) refuses a record with no evidence. Then, for each record, [two_stage_line](two_stage_lines.py#L40) writes one line:
 
 - **The rules first** ([line 53](two_stage_lines.py#L53)), the same text in every line: the task, how to use the evidence, the decision rules and the lean rule.
 - **Then the evidence** ([lines 54-55](two_stage_lines.py#L54)), between `<<<EVIDENCE` and `EVIDENCE>>>` and labelled as untrusted data, not instructions. [format_evidence](two_stage_lines.py#L15) puts the shared headquarters search first, shows a page that two searches found only once, and cuts each passage to `--max-chars`.
@@ -109,7 +110,7 @@ python two_stage.py build ../samples/brand-owner/records.jsonl --plan lean --evi
 - **No tools.** The model answers from the evidence only, so the line can't run a search, and nothing is billed for search in stage 2.
 - The same strict JSON schema as option 1 ([line 64](two_stage_lines.py#L64)), low reasoning effort, and `store: false` ([line 67](two_stage_lines.py#L67)).
 
-[order_for_caching](../shared/pipeline.py#L109) puts records with the same first search next to each other, so consecutive lines start with the same text: a prompt-caching opportunity, not a guarantee. On 31 October, 5,376 of 81,285 input tokens were cached.
+[order_for_caching](../shared/pipeline.py#L191) puts records with the same first search next to each other, so consecutive lines start with the same text: a prompt-caching opportunity, not a guarantee. On 31 October, 5,376 of 81,285 input tokens were cached.
 
 The real line for R01 (1 November 2026). The titles, URLs, dates and passages that Web IQ returned are replaced with placeholders here, because this repository doesn't publish Web IQ content:
 
@@ -161,7 +162,8 @@ There is no `tools` field, and no `max_tool_calls`: nothing in stage 2 can searc
 | Results per search | `[webiq] max_results`, [line 103](../shared/settings.toml#L103) | `--max-results` |
 | Characters per result | `[webiq] max_chars`, [line 104](../shared/settings.toml#L104) | `--max-chars` |
 | Searches a second | `[webiq] qps`, [line 106](../shared/settings.toml#L106) | `--qps` |
-| Most searches per run | `[webiq] max_queries`, [line 109](../shared/settings.toml#L109) | `--max-queries` |
+| Most searches per run, per record | `[webiq] max_queries_per_record`, [line 109](../shared/settings.toml#L109) | `--max-queries` (an absolute cap) |
+| Rounds for searches that still fail | `[webiq] auto_rounds` and `round_waits_seconds`, [line 112](../shared/settings.toml#L112) | `--no-auto-retry` (one round) |
 | Reasoning effort | `[defaults] reasoning_effort`, [line 88](../shared/settings.toml#L88) | `--reasoning-effort` |
 | Output cap | `[defaults] max_output_tokens`, [line 89](../shared/settings.toml#L89) | `--max-output-tokens` |
 
@@ -174,16 +176,16 @@ python two_stage.py run ../samples/brand-owner/records.jsonl --workdir runs/lean
     --deployment <Global Batch deployment> --price-model gpt-5.4-mini --max-cost 1
 ```
 
-[cmd_run](../shared/pipeline.py#L205), in order:
+[cmd_run](../shared/pipeline.py#L287), in order:
 
-1. **Prices.** It reads list prices once, live from the Azure Retail Prices API, and saves them in the work folder as `prices-used.json`, so a resumed job is priced the same way ([line 225](../shared/pipeline.py#L225)).
-2. **Forecast before any search** ([line 262](../shared/pipeline.py#L262)), as in step 1. If it's above `--max-cost` (in US dollars), it stops, and nothing has been called ([line 267](../shared/pipeline.py#L267)).
-3. **Stage 1** ([line 268](../shared/pipeline.py#L268)), as in step 3, into the work folder's `evidence.jsonl`. If any search still failed after its retries, it stops before building anything; running the same command again retries only those searches ([line 287](../shared/pipeline.py#L287)).
-4. **Stage 2 lines** ([line 288](../shared/pipeline.py#L288)), as in step 4, into `batch-input.jsonl`.
-5. **Exact forecast before submitting** ([line 290](../shared/pipeline.py#L290)). [exact_before_submit](../shared/cost.py#L74) counts the input tokens of the finished lines. Only the output tokens are still assumed, because no tool can add input later. If it's above `--max-cost`, it stops before submitting ([line 295](../shared/pipeline.py#L295)); the searches have run and are billed, but the job hasn't been submitted.
-6. **Submit, wait, collect and clean up**, exactly as in [option 1, step 3](../option-1-bounded-web-search/WALKTHROUGH.md#step-3---run-the-job): the file checks, the upload with a 14-day expiry, `state.json`, polling, `metrics.jsonl`, and deleting the job's files in Azure OpenAI ([lines 312-325](../shared/pipeline.py#L312)).
-7. **A job that didn't complete.** The completed lines are kept, and so is the evidence: running the same command again resubmits only the other lines, without searching again.
-8. **Results and clean-up** ([line 344](../shared/pipeline.py#L344)). It writes `results.jsonl`, prices the job with [actual](../shared/cost.py#L103), and deletes the working files: `evidence.jsonl`, `batch-input.jsonl`, `kept-lines.jsonl` and `state.json` ([line 348](../shared/pipeline.py#L348)). `run.json` keeps the plan, both forecasts, the stage 1 statistics, the timings and the cost.
+1. **Prices.** It reads list prices once, live from the Azure Retail Prices API, and saves them in the work folder as `prices-used.json`, so a resumed job is priced the same way ([line 312](../shared/pipeline.py#L312)).
+2. **Forecast before any search** ([line 349](../shared/pipeline.py#L349)), as in step 1. If it's above `--max-cost` (in US dollars), it stops, and nothing has been called ([line 354](../shared/pipeline.py#L354)).
+3. **Stage 1** ([line 355](../shared/pipeline.py#L355)), as in step 3, into the work folder's `evidence.jsonl`. The records that use a search that still failed after the automatic rounds are held ([line 372](../shared/pipeline.py#L372)): they aren't sent to the model, because a record without its evidence gets a confident wrong answer, not an error. The others go on. If every record is held, it stops before building anything, with exit code 1 if a failure needs a person (another 4xx, such as 401 or 403) and 3 otherwise ([line 385](../shared/pipeline.py#L385)). With `--no-auto-retry`, any failed search stops it before building anything, and running the same command again retries only those searches.
+4. **Stage 2 lines** ([line 386](../shared/pipeline.py#L386)), as in step 4, for the records that aren't held, into `batch-input.jsonl`.
+5. **Exact forecast before submitting** ([line 388](../shared/pipeline.py#L388)). [exact_before_submit](../shared/cost.py#L74) counts the input tokens of the finished lines. Only the output tokens are still assumed, because no tool can add input later. If it's above `--max-cost`, it stops before submitting ([line 393](../shared/pipeline.py#L393)); the searches have run and are billed, but the job hasn't been submitted.
+6. **Submit, wait, collect, send again and clean up**, exactly as in [option 1, step 3](../option-1-bounded-web-search/WALKTHROUGH.md#step-3---run-the-job): the file checks, splitting above the file limits, the upload with a 14-day expiry, creating each job once, waiting while the quota is full, `state.json`, polling, the automatic rounds, and deleting the jobs' files in Azure OpenAI ([run_batch](../shared/pipeline.py#L600)).
+7. **Resuming.** Settled lines are kept in `kept-lines.jsonl`, and so is the evidence: a later round, or running the same command again, sends only the other lines, without searching again.
+8. **Results and clean-up** ([line 733](../shared/pipeline.py#L733)). It writes `results.jsonl` and `held-records.jsonl`, prices the job with [actual](../shared/cost.py#L103), and deletes the working files: `evidence.jsonl`, `batch-input.jsonl`, `kept-lines.jsonl` and `state.json` ([line 738](../shared/pipeline.py#L738)). `run.json` keeps the plan, both forecasts, the stage 1 statistics, the batch jobs, the held records, the timings and the cost. A held record's line in `results.jsonl` names the search that failed.
 
 What came out for the 23 sample records on gpt-5.4-mini, 31 October 2026 ([run.json](../results/2026-10-31/two-stage-lean-gpt54mini/run.json)):
 
@@ -223,12 +225,14 @@ python toolbox.py delete --project-endpoint https://<resource>.services.ai.azure
 | --- | --- |
 | `Forecast $... is above --max-cost` before searching | Nothing was called. Raise `--max-cost`, or reduce the searches (`--plan lean`, fewer records) |
 | `Forecast $... is above --max-cost` before submitting | The searches ran and are billed; the job wasn't submitted. Raise `--max-cost` and run the same command: it reuses the evidence and doesn't search again |
-| `N searches failed; nothing was submitted` | Read the errors it prints: 401 or 403 is access (role, key or toolbox URL), 429 is your Web IQ rate limit (lower `--qps`). Run the same command again: only the failed searches run |
-| `... searches to run, above --max-queries 500` | A safety cap, not an error: raise `--max-queries` deliberately for a larger job |
+| `N searches still failed after the automatic rounds`; records `held` (exit code 3) | Read the errors it prints: 429 is your Web IQ rate limit (lower `--qps`), other 4xx is access or a bad query. The other records were sent; run `held-records.jsonl` as a new job later |
+| `Every record is held: searches failed with HTTP 401` (or 403; exit code 1) | Access: the role, the key in the toolbox's connection, or the toolbox URL. Through a toolbox the refusal may arrive inside an HTTP 200 response; the code reads its status either way. Fix it and run the same command again: only the failed searches run |
+| `... searches to run, above the safety cap` | More than 3 searches per record: check the plan with `plan --show-searches`, or pass `--max-queries` to raise the cap deliberately |
 | `No Web IQ 'web' tool in the toolbox` | The toolbox's connection is wrong or has no Web IQ key: re-create the toolbox with the right `--connection` |
 | `Set WEBIQ_API_KEY for --via rest` | Set the variable, or use `--webiq-auth entra`, or `--via toolbox` |
-| The command was interrupted | Run the same command again: finished searches aren't repeated, and a submitted job is waited for, not submitted again |
-| The job ended `failed`, `expired` or `cancelled` | Run the same command again: completed lines are kept and only the others are resubmitted, without searching again |
+| The command was interrupted | Run the same command again: finished searches aren't repeated, and submitted jobs are waited for, not submitted again |
+| `A batch job failed validation` (exit code 1) | Fix the cause it names, and run the same command again: settled lines are kept and only the others are sent again, without searching again |
+| Exit code 75 | The enqueued-token quota stayed full, or `--max-wait-minutes` ran out: run the same command again later |
 
 ## Option 2 or option 1?
 

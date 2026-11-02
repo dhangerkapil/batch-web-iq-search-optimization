@@ -14,10 +14,11 @@ response reports, its usage, how the attempt is billed and what happens to the l
     a new round, only with retry_ambiguous: a client timeout or a dropped connection (Flex requests can queue, so the
     service may still process, and bill, a request the client stopped waiting for), or a request that was in flight
     when a run stopped (a start row with no outcome). Resending it automatically could pay twice for one line;
-  - a line that used up its attempts on errors that may pass (HTTP 408, 429, 5xx) is held, and sent again, in a new
-    round, only with retry_failed;
+  - a line that used up its attempts on errors that may pass (HTTP 408, 429, 5xx) is sent again in an automatic round,
+    after a pause, until it has had auto_rounds rounds; after that it's held, and sent again only with retry_failed;
   - a line that failed with an error retrying can't fix (another 4xx, or a response on another tier) stays failed;
-  - every other line is sent: not sent yet, or a round cut short (Ctrl+C, a stopped job, or a long Retry-After).
+  - every other line is sent: not sent yet, or a round cut short (Ctrl+C, a stopped job, or a long Retry-After, which
+    is waited out before the next automatic round).
 """
 from __future__ import annotations
 
@@ -38,6 +39,7 @@ from collections import Counter
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "shared"))  # the code every option shares
 
 import batch as batchlib
+from exits import HELD_STATUS
 from settings import SETTINGS
 from util import now
 
@@ -60,7 +62,7 @@ OTHER_TIER = "other_tier"  # a response processed on a tier other than flex: cou
 # What an attempt means for its line ("result" in the ledger).
 COMPLETED = "completed"  # the line has its response (the response's own status is in its metrics): never sent again
 RETRYING = "retrying"  # another attempt follows; if this run stopped first, a re-run continues the round
-USED_UP = "used_up"  # the round's attempts are used up: sent again, in a new round, only with retry_failed
+USED_UP = "used_up"  # the round's attempts are used up: sent again in an automatic round, or with retry_failed after those
 FAILED = "failed"  # an error retrying can't fix: never sent again
 # No answer was recorded, but the request may have been processed and billed: a client timeout, a dropped connection, an
 # unreadable response or an unexpected error. The line is held, and sent again, in a new round, only with retry_ambiguous.
@@ -124,6 +126,13 @@ def backoff(attempt: int) -> float:
 def _sleep(seconds: float, stop: threading.Event) -> None:
     """The wait between attempts; it ends early when the run is stopping. Tests replace it."""
     stop.wait(seconds)
+
+
+def _pause(seconds: float) -> None:
+    """The pause before an automatic round, in the main thread: short sleeps, so Ctrl+C is noticed. Tests replace it."""
+    end = time.monotonic() + seconds
+    while end - time.monotonic() > 0:
+        time.sleep(min(1.0, end - time.monotonic()))
 
 
 def _http_status(err: BaseException) -> int | None:
@@ -222,25 +231,29 @@ def _states(ledger: list[dict], ids, max_attempts: int, retry_failed: bool = Fal
 
 
 def metric_row(custom_id: str, state: dict) -> dict:
-    """A line's metrics.jsonl row: the Flex response's metrics, or an error row like the Batch path's."""
+    """A line's metrics.jsonl row: the Flex response's metrics, or an error row like the Batch path's. A line that may
+    still be answered if it's sent again (held, or used up) has status "held"."""
     row = state.get("row") or {}
     if state["state"] == "completed":
         m = dict(row.get("metrics") or {})
         m["custom_id"] = custom_id
         return m
+    status = "error"
     if state["state"] == "held":
         why = (f"its outcome and charge are unknown ({row.get('error')})" if row.get("result") == OUTCOME_UNKNOWN
                else "a request was in flight when a run stopped, so its outcome and charge are unknown")
-        error = f"{why}; re-run with --retry-ambiguous to send it again"
+        error, status = f"{why}; re-run with --retry-ambiguous to send it again", HELD_STATUS
     elif state["state"] == "used_up":
-        error = f"used up its attempts, the last with {row.get('error')}; re-run with --retry-failed to send it again"
+        error = (f"used up its attempts in round {row.get('round') or 1}, the last with {row.get('error')}; re-run with "
+                 "--retry-failed to send it again")
+        status = HELD_STATUS
     elif state["state"] == "failed":
         error = str(row.get("error"))
     elif row:
         error = f"not finished ({row.get('note') or row.get('error')}); re-run the same command to continue"
     else:
         error = "not sent; re-run the same command to send it"
-    return {"custom_id": custom_id, "status": "error", "error": error[:500]}
+    return {"custom_id": custom_id, "status": status, "error": error[:500]}
 
 
 def summarize(ledger: list[dict], states: dict[str, dict], *, sent: int, concurrency: int, max_attempts: int) -> dict:
@@ -313,6 +326,7 @@ class _Sender:
         self.max_server_wait = float(_F["max_server_wait_seconds"])
         self.stop = threading.Event()  # set by Ctrl+C or a job-stopping error: no attempt starts after it
         self.stopped: str | None = None
+        self.interrupted = False  # stopped by Ctrl+C, not by an error
         self.lock = threading.Lock()
         self.sent = self.in_flight = self.completed = self.throttled = 0
 
@@ -403,12 +417,13 @@ class _Sender:
         elif status in RETRY_STATUS:
             billing = NOT_BILLED if status == 429 else UNKNOWN
             if attempt >= self.max_attempts:
-                result, note = USED_UP, f"used up its {self.max_attempts} attempts; --retry-failed sends it again"
+                result, note = USED_UP, f"used up its {self.max_attempts} attempts; an automatic round or --retry-failed sends it again"
             elif server_wait is not None and server_wait > self.max_server_wait:
                 result = RETRYING
                 until = dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=min(server_wait, 1e7))
                 note = extra["note"] = (f"the service asked to wait {server_wait:.0f} s, longer than max_server_wait_seconds "
-                                        f"({self.max_server_wait:.0f}); left for a re-run after {until.isoformat(timespec='seconds')}")
+                                        f"({self.max_server_wait:.0f}); waited out before the next automatic round, or "
+                                        f"left for a re-run after {until.isoformat(timespec='seconds')}")
             else:
                 wait = max(backoff(attempt), server_wait or 0.0)
                 result, extra["wait_s"] = RETRYING, round(wait, 1)
@@ -475,6 +490,7 @@ def _send(sender: _Sender, todo: list[tuple[str, int, int]], concurrency: int) -
         _wait_all(futures, sender, len(todo))
     except KeyboardInterrupt:
         sender.stop.set()
+        sender.interrupted = True
         for f in futures:
             f.cancel()
         print(f"\nStopping: no new requests are sent. Waiting for {sender.in_flight} request(s) in flight so their outcomes are "
@@ -495,19 +511,50 @@ def _send(sender: _Sender, todo: list[tuple[str, int, int]], concurrency: int) -
     return sender.stopped
 
 
+def _auto_line(state: dict, rounds: int) -> tuple[int, int] | None:
+    """(round, attempts already made) to send a line in an automatic round, or None. A line that used up its attempts
+    on HTTP 408, 429 or 5xx goes in a new round while it has had fewer than `rounds`; a line left waiting out a
+    Retry-After longer than max_server_wait_seconds continues its own round."""
+    if state["state"] == "used_up" and int(state["round"] or 1) < rounds:
+        return int(state["round"] or 1) + 1, 0
+    if state["state"] == "pending" and state["row"] is not None:
+        return state["round"], state["used"]
+    return None
+
+
+def round_pause(extra: int, states: list[dict]) -> float:
+    """The pause before automatic round `extra` (2 or later): round_waits_seconds, or longer to wait out what is left
+    of a Retry-After a line was given, up to max_round_wait_seconds."""
+    waits = [float(w) for w in _F["round_waits_seconds"]] or [0.0]
+    left = 0.0
+    for s in states:
+        row = s.get("row") or {}
+        if row.get("retry_after_s"):
+            try:
+                ago = (dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(row["at"])).total_seconds()
+            except (KeyError, TypeError, ValueError):
+                ago = 0.0
+            left = max(left, float(row["retry_after_s"]) - ago)
+    return max(waits[min(extra - 2, len(waits) - 1)], min(left, float(_F["max_round_wait_seconds"])))
+
+
 def run_lines(lines: list[dict], workdir: str | os.PathLike, *, deployment: str, base_url: str | None = None,
               subscription: str | None = None, client=None, concurrency: int | None = None, retry_failed: bool = False,
-              retry_ambiguous: bool = False) -> dict:
+              retry_ambiguous: bool = False, auto_rounds: int | None = None) -> dict:
     """Send every line that still needs sending with Flex processing, then read back the state of every line.
 
-    Returns {"rows": one metrics row per line, sorted by custom_id, in the shape the Batch path writes to metrics.jsonl
-    (an error row for a line without a Flex response); "summary": lines and attempts, for run.json; "stopped": why the
-    run stopped early (Ctrl+C, or an error every request would get), or None}. `client` replaces the OpenAI client.
+    Lines that used up their attempts on HTTP 408, 429 or 5xx are sent again in automatic rounds, after a pause, up to
+    auto_rounds rounds in all (from settings.toml when None; 1 turns them off). Returns {"rows": one metrics row per
+    line, sorted by custom_id, in the shape the Batch path writes to metrics.jsonl (an error or held row for a line
+    without a Flex response); "summary": lines and attempts, for run.json; "stopped": why the run stopped early (Ctrl+C,
+    or an error every request would get), or None; "interrupted": whether that was Ctrl+C}. `client` replaces the
+    OpenAI client.
     """
     problems = check_lines(lines)
     if problems:
         raise SystemExit("Refusing to send: " + "; ".join(problems))
     max_attempts = int(_F["max_attempts"])
+    rounds = max(1, int(_F["auto_rounds"] if auto_rounds is None else auto_rounds))
     concurrency = max(1, int(concurrency or _F["concurrency"]))
     bodies = {line["custom_id"]: flex_body(line, deployment) for line in lines}
     hashes = {cid: request_sha256(body) for cid, body in bodies.items()}
@@ -521,24 +568,46 @@ def run_lines(lines: list[dict], workdir: str | os.PathLike, *, deployment: str,
     notes = [
         f"{skip['held']} held because a request's outcome is unknown, for example it timed out or was in flight when a run "
         "stopped (--retry-ambiguous sends them again)" if skip["held"] else "",
-        f"{skip['used_up']} held after using up their attempts (--retry-failed sends them again)" if skip["used_up"] else "",
+        f"{skip['used_up']} held after using up their attempts (an automatic round, or --retry-failed, sends them again)"
+        if skip["used_up"] else "",
         f"{skip['failed']} failed with errors retrying can't fix" if skip["failed"] else "",
     ]
     print(f"Flex: {len(lines)} lines: {skip['completed']} completed earlier, {len(todo)} to send to '{deployment}' "
-          f"({concurrency} at a time, at most {max_attempts} attempts each)" + "".join(f"; {n}" for n in notes if n)
-          + f". Ledger: {LEDGER}")
-    sent, stopped = 0, None
-    if todo:
+          f"({concurrency} at a time, at most {max_attempts} attempts each, up to {rounds} rounds)"
+          + "".join(f"; {n}" for n in notes if n) + f". Ledger: {LEDGER}")
+    sent, stopped, interrupted = 0, None, False
+    if todo or (rounds > 1 and any(_auto_line(s, rounds) for s in states.values())):
         client = client or make_client(base_url, subscription)
         ledger = _Ledger(pathlib.Path(workdir) / LEDGER)
         try:
             sender = _Sender(client, bodies, hashes, ledger, deployment, max_attempts)
-            stopped = _send(sender, todo, concurrency)
+            for extra in range(1, rounds + 1):
+                if extra > 1:
+                    now_states = _states(read_ledger(workdir), bodies, max_attempts)
+                    again = {c: x for c, s in now_states.items() if (x := _auto_line(s, rounds))}
+                    if not again:
+                        break
+                    pause = round_pause(extra, [now_states[c] for c in again])
+                    print(f"Flex, automatic round {extra} of {rounds}: {len(again)} lines used up their attempts on HTTP 408, "
+                          f"429 or 5xx, or were asked to wait; sending them again in {pause:.0f} s", flush=True)
+                    try:
+                        _pause(pause)
+                    except KeyboardInterrupt:
+                        stopped, interrupted = "Interrupted (Ctrl+C) before an automatic round; no request was in flight.", True
+                        break
+                    todo = [(c, rnd, used) for c, (rnd, used) in again.items()]
+                if todo:
+                    stopped = _send(sender, todo, concurrency)
+                if stopped:
+                    interrupted = sender.interrupted
+                    break
             sent = sender.sent
         finally:
             ledger.close()
     rows = read_ledger(workdir)
     states = _states(rows, bodies, max_attempts)
     summary = summarize(rows, states, sent=sent, concurrency=concurrency, max_attempts=max_attempts)
+    summary["auto_rounds"] = rounds
     summary["stopped"] = stopped
-    return {"rows": [metric_row(c, states[c]) for c in sorted(bodies)], "summary": summary, "stopped": stopped}
+    return {"rows": [metric_row(c, states[c]) for c in sorted(bodies)], "summary": summary, "stopped": stopped,
+            "interrupted": interrupted}

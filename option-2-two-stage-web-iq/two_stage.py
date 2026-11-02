@@ -43,6 +43,7 @@ def main() -> None:
     cli.plan(p)
     p.add_argument("--out", required=True, help="evidence JSONL (job-scoped working data; delete it after the job)")
     add_search_args(p)
+    cli.auto_retry(p)
     p.set_defaults(fn=cmd_search)
 
     p = sub.add_parser("build", help="write the no-tools lines from an evidence file, without submitting them")
