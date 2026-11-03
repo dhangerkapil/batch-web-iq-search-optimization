@@ -42,6 +42,9 @@ Yes: use [flex_job.py](../flex-web-search-and-web-iq/flex_job.py) with `--design
 **Which models were tested?**
 gpt-5.4-mini and gpt-5.4, on Global Batch, on 31 October 2026; gpt-6-sol on Flex, in 5-record checks on 1 November 2026. [settings.toml](../shared/settings.toml) also names the gpt-5.4-nano, gpt-5 and gpt-5-mini meters, so you can forecast with them; those models weren't tested with this sample.
 
+**Can I cut the cost just by switching the deployment to gpt-5.4 or gpt-5.4-mini?**
+It can look that way. Those models default to reasoning effort `none` when a line doesn't set it, and at `none` the model searches less: on another workload it made about one search call per record, the fewest of any setting we tried, but its answers were less reliable on that workload's labeled records. Set the effort in every line, add a search budget written for your task, and check a labeled sample before you switch ([03](03-options-compared.md#option-1---bound-the-built-in-web-search)).
+
 **What does `insufficient_evidence` mean, and what should I do with it?**
 The evidence didn't address the fact. That's the right answer for the sample's fictional records. For real records, send them to a second pass that lets the model search, or to a person.
 

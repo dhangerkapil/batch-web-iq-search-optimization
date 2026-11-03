@@ -36,12 +36,28 @@ Also use the `web_search` tool type, not `web_search_preview`, which is "support
 
 **Why it's attractive.** It needs no new service, contract or code beyond the line settings, and batch accepted every setting.
 
-**What we measured.** Only 6% cheaper on the sample: gpt-5.4-mini went from 2.87 to 2.52 billed requests per record.
+**What we measured.** Only 6% cheaper on the sample: gpt-5.4-mini went from 2.87 to 2.52 billed requests per record. Part of the reason is the starting point: the model-driven lines set no reasoning effort, so gpt-5.4-mini ran at its default, `none`, with about one search call and 68 reasoning tokens per record, while the bounded lines set `low` (1.48 calls and 354 reasoning tokens per record; [run records](../results/2026-10-31/)).
 
 - The cap limits tool-call items, not the requests inside each call: 1.48 call items per record still produced 2.52 billed requests.
 - A cap can only remove searches the model was making. A model that searches more by default leaves more to cut.
 - Two `owner_hq` facts came back `insufficient_evidence`: within the two-search budget, the model didn't find a page that stated the headquarters.
 - **The record's market in `user_location` changed neither cost nor speed measurably** in a separate test on 2 November 2026: 37 records of another workload, bounded lines on gpt-5.4 Global Batch, two runs with the country and two without. Billed requests per record were 2.68 and 2.73 with it and 2.81 and 2.41 without, and every run's median was 13 seconds per response: the two arms differed less than two runs of the same arm. Learn says the location refines search results ([Web search: control results by user location](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/web-search#control-results-by-user-location)), so the lines keep it.
+
+**Each setting on its own, on another workload.** On 3 November 2026 we ran 37 records of another workload on gpt-5.4 Global Batch, changing one group of settings per job, priced at list prices:
+
+| Lines | Billed requests per record | Cost per 1,000 records |
+| --- | --- | --- |
+| As written: no cap, no schema, no reasoning effort set (the responses reported `none`) | 3.4 | $57.23 |
+| ... plus `max_tool_calls: 2` | 3.4 | $57.28 |
+| ... plus `reasoning.effort: low` | 5.4 | $92.98 |
+| ... plus a short search budget, not specific to the task, at the end of the system message | 2.4 | $46.82 |
+| Bounded lines with a search budget, rules and a strict schema written for the task (five runs) | 2.6-2.9 | $50.14-$55.77 |
+| The same bounded lines with `max_tool_calls: 1` | 2.1 | $38.48 |
+
+- **Reasoning effort moves the searches most.** At `none` the model made about one search call per record, so a cap of 2 changed nothing; at `low` with no budget it made 1.7 calls of about three queries each.
+- **The cap limits calls, not queries:** one call carried up to four. A search budget in the prompt is what cut the queries per call, from about three to 1.9.
+- **Cheaper wasn't better.** Every run at `none`, and the run with a cap of 1, answered that workload's labeled records less reliably than the bounded lines at `low` with the task's own budget, rules and schema; the cap of 1 also left more facts unsettled. Set the reasoning effort in every line, and measure a change on a labeled sample before you adopt it ([08](08-evaluate-quality.md)).
+- **Per subscription, web search can only be switched on or off** ([Manage web search tool](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/web-search#manage-web-search-tool)). The cap, the effort and the budget go in each line, so put them in the code that writes your lines.
 
 **When to choose it.** When you need a change this week with no new service, and `analyze` shows the model making many searches per line.
 

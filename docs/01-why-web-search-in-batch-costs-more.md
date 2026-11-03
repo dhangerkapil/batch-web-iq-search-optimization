@@ -24,7 +24,7 @@ The sample checks 23 brand records for two facts each: who owns the brand in a m
 | Tokens (8,713 input, 2,905 of them cached, and 292 output per record) | $2.94 | 7% |
 | **Total** (rounded) | **$43.12** | |
 
-Bounding the search inside the batch line (at most 2 tool calls, low reasoning effort, a strict schema, a search budget in the prompt) cut that by only 6%, to $40.33, because the model still made 2.52 billed requests per record ([results](../results/2026-10-31/bounded-web-search-gpt54mini/run.json)). The tool-call cap limits call items, not the requests inside each call.
+Bounding the search inside the batch line (at most 2 tool calls, low reasoning effort, a strict schema, a search budget in the prompt) cut that by only 6%, to $40.33, because the model still made 2.52 billed requests per record ([results](../results/2026-10-31/bounded-web-search-gpt54mini/run.json)). The tool-call cap limits call items, not the requests inside each call. And the starting point was already lean: its lines set no reasoning effort, so gpt-5.4-mini ran at its default, `none`, which searches little, while the bounded lines set `low` ([03](03-options-compared.md#option-1---bound-the-built-in-web-search)).
 
 Your numbers will differ by model, prompt and record mix: bigger reasoning models tend to search more, and prompts that ask for many citations search more. The shape is common: **search is the cost, and the model controls it**.
 

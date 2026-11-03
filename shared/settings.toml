@@ -85,7 +85,7 @@ workload = "brand-owner"
 plan = "lean"
 deployment = "my-batch-deployment"    # placeholder for `plan`, which calls no model
 price_model = "gpt-5.4-mini"
-reasoning_effort = "low"
+reasoning_effort = "low"              # set in every line: gpt-5.4 and gpt-5.4-mini default to "none" when a request doesn't set it
 max_output_tokens = 8000              # a guardrail; you pay for the tokens generated, not the cap
 max_tool_calls = 2                    # bounded-web-search only
 

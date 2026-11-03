@@ -17,7 +17,7 @@ Measured on 31 October 2026 at list prices ([09](../docs/09-results-on-the-sampl
 - the current `web_search` tool, not `web_search_preview`, which is "supported but not recommended" ([Web search](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/web-search)), with `user_location` set to the record's market;
 - `max_tool_calls: 2`: the API ignores further tool calls in the response;
 - a search budget written into the prompt: how much to search and when to stop;
-- `reasoning.effort: low`;
+- `reasoning.effort: low`, set in every line: without it, gpt-5.4 and gpt-5.4-mini run at their default, `none`;
 - a strict JSON schema ([Structured outputs](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/structured-outputs));
 - `max_output_tokens` as a guardrail: you pay for the tokens generated, not the cap.
 
@@ -88,7 +88,7 @@ All in [shared/settings.toml](../shared/settings.toml). A command-line option ov
 | Setting | Line | Default |
 | --- | --- | --- |
 | `[defaults] max_tool_calls` (`--max-tool-calls`) | [90](../shared/settings.toml#L90) | `2` |
-| `[defaults] reasoning_effort` (`--reasoning-effort`) | [88](../shared/settings.toml#L88) | `"low"` |
+| `[defaults] reasoning_effort` (`--reasoning-effort`) | [88](../shared/settings.toml#L88) | `"low"`. Keep it set: gpt-5.4 and gpt-5.4-mini default to `none` ([03](../docs/03-options-compared.md#option-1---bound-the-built-in-web-search)) |
 | `[defaults] max_output_tokens` (`--max-output-tokens`) | [89](../shared/settings.toml#L89) | `8000` |
 | `[batch] max_rounds`: rounds in all for lines that failed with HTTP 408, 429 or 5xx, or weren't processed | [133](../shared/settings.toml#L133) | `3` |
 | `[batch] part_bytes`: where a job above the file limits is split | [128](../shared/settings.toml#L128) | 180 MB (and 100,000 lines) |

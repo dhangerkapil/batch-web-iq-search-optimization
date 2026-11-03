@@ -25,7 +25,7 @@ def web_search_line(
 ) -> dict:
     """A line where the model searches with the built-in web_search tool.
 
-    Unbounded: the common starting point - a prompt that says "use web search", no caps, no schema.
+    Unbounded: the common starting point - a prompt that says "use web search", no caps, no schema and no reasoning effort, so the model's default applies ("none" on gpt-5.4 and gpt-5.4-mini).
     Bounded: the cheapest change that keeps search inside the batch - max_tool_calls, low reasoning
     effort, a strict schema, user_location and a search budget in the prompt.
     """
