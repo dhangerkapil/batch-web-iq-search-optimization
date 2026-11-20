@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import httpx
 import openai
 import pytest
+from azure.core.exceptions import ClientAuthenticationError
 
 import agent_web_search as aws
 import batch as batchlib
@@ -37,7 +38,7 @@ def http_error(status, message="error", headers=None):
     return cls(f"Error code: {status} - {message}", response=response, body={"error": {"message": message}})
 
 
-def answered(searches=3, billed=4, tool_usage=True):
+def answered(searches=3, billed=4, tool_usage=True, tier="default"):
     """A response with `searches` web_search_call items (search, open_page, search, ...) and a cited answer."""
     items = [{"type": "reasoning", "summary": []}]
     for i in range(searches):
@@ -49,7 +50,7 @@ def answered(searches=3, billed=4, tool_usage=True):
     items.append({"type": "message", "role": "assistant", "content": [{
         "type": "output_text", "text": "The answer, from https://example.com/0.",
         "annotations": [{"type": "url_citation", "url": "https://example.com/0", "title": "Example", "start_index": 0, "end_index": 3}]}]})
-    body = {"status": "completed", "model": "gpt-test", "service_tier": "default", "output": items,
+    body = {"status": "completed", "model": "gpt-test", "service_tier": tier, "output": items,
             "usage": {"input_tokens": 9000, "input_tokens_details": {"cached_tokens": 0}, "output_tokens": 300,
                       "output_tokens_details": {"reasoning_tokens": 120}}}
     if tool_usage:
@@ -57,26 +58,44 @@ def answered(searches=3, billed=4, tool_usage=True):
     return body
 
 
-class FakeClient:
-    """Responses API stand-in: every create call is recorded; each gets the next item of `script`, a body or an exception."""
+class FakeRaw:
+    """What responses.with_raw_response.create returns: the parsed body, and the HTTP headers."""
 
-    def __init__(self, script):
-        self.script, self.calls = list(script), []
-        self.responses = self
+    def __init__(self, body, headers):
+        self.body, self.headers = body, headers
+
+    def parse(self):
+        return self.body
+
+
+class FakeClient:
+    """Responses API stand-in: every create call is recorded; each gets the next item of `script`, a body or an exception.
+    Answers carry `headers`."""
+
+    def __init__(self, script, headers=None):
+        self.script, self.calls, self.headers = list(script), [], dict(headers or {})
+        self.responses = self.with_raw_response = self
 
     def create(self, **kwargs):
         self.calls.append(kwargs)
         item = self.script.pop(0)
         if isinstance(item, BaseException):
             raise item
-        return item
+        return item if isinstance(item, FakeRaw) else FakeRaw(item, self.headers)
+
+
+class Unreadable(FakeRaw):
+    """An HTTP 200 whose body can't be parsed, such as a proxy's HTML page."""
+
+    def parse(self):
+        raise ValueError("not JSON")
 
 
 def options(**kw):
     a = dict(records=str(RECORDS), lines=None, first=3, workload="brand-owner", allow_problems=False, design="web-search",
              deployment="my-deployment", max_tool_calls=None, reasoning_effort=None, max_output_tokens=None, tool=None,
              service_tier=None, count_sources=False, mode="request", workdir=None, base_url=None, project_endpoint=None,
-             agent_name=None, keep_agent=False, retries=0, concurrency=1, subscription=None)
+             agent_name=None, keep_agent=False, retries=0, concurrency=1, subscription=None, fallback_default=False)
     a.update(kw)
     return SimpleNamespace(**a)
 
@@ -130,15 +149,25 @@ def test_billed_search_requests_are_not_reported_when_the_response_has_no_tool_u
     assert "not reported" in one.table([row])
 
 
-def test_only_408_429_and_5xx_are_retried_and_a_timeout_is_never_sent_again():
+def test_only_408_429_and_5xx_are_retried_within_bounds_and_a_timeout_is_never_sent_again(monkeypatch):
     waits = []
-    client = FakeClient([http_error(429, headers={"retry-after": "7"}), http_error(503), answered()])
+    client = FakeClient([http_error(429, headers={"retry-after": "7"}), http_error(408), http_error(503), answered()])
     outcome = one.send(client, {"input": "x"}, retries=3, sleep=waits.append)
-    assert outcome["http_requests"] == 3 and outcome["response"] is not None
-    assert waits[0] == 7.0 and len(waits) == 2
+    assert outcome["http_requests"] == 4 and outcome["response"] is not None and len(waits) == 3
+    assert waits[0] >= 7.0 and outcome["throttled_attempts"] == 1  # max(backoff with jitter, Retry-After)
 
-    outcome = one.send(FakeClient([http_error(429)]), {"input": "x"})  # the default: sent once
+    outcome = one.send(FakeClient([http_error(429)]), {"input": "x"})  # retries=0: sent once
     assert outcome["http_requests"] == 1 and outcome["response"] is None and outcome["error_kind"] == "http_429"
+
+    longer = one.MAX_SERVER_WAIT + 1  # a Retry-After longer than [flex] max_server_wait_seconds isn't waited out
+    client = FakeClient([http_error(429, headers={"retry-after": str(longer)}), answered()])
+    outcome = one.send(client, {"input": "x"}, retries=3, sleep=waits.append)
+    assert len(client.calls) == 1 and outcome["retry_after_seconds"] == longer
+
+    monkeypatch.setattr(one._flex(), "backoff", lambda attempt: 100.0)
+    client = FakeClient([http_error(503), http_error(503), http_error(503), answered()])
+    outcome = one.send(client, {"input": "x"}, retries=3, sleep=waits.append, budget=250)  # a third 100 s wait would pass 250
+    assert len(client.calls) == 3 and outcome["error_kind"] == "http_503"
 
     client = FakeClient([http_error(400, "bad request"), answered()])
     outcome = one.send(client, {"input": "x"}, retries=3, sleep=waits.append)
@@ -156,8 +185,52 @@ def test_only_408_429_and_5xx_are_retried_and_a_timeout_is_never_sent_again():
 
     with pytest.raises(one.Stop):
         one.send(FakeClient([http_error(401)]), {"input": "x"})
-    with pytest.raises(one.Stop):
+    with pytest.raises(one.Stop) as caught:  # no token: nothing was sent
+        one.send(FakeClient([ClientAuthenticationError("Failed to invoke the Azure CLI")]), {"input": "x"})
+    assert caught.value.kind == "access" and caught.value.outcome["http_requests"] == 0
+    with pytest.raises(one.Stop) as caught:
         one.send(FakeClient([http_error(400, "Flex tier is not supported for this deployment")]), {"model": "d", "input": "x"})
+    assert caught.value.kind == "flex_unsupported" and "--service-tier default" in str(caught.value)
+    with pytest.raises(one.Stop) as caught:  # not an HTTP error: it may have reached the service, so it's held
+        one.send(FakeClient([ValueError("boom")]), {"input": "x"})
+    assert caught.value.kind == "exception" and caught.value.outcome["held"] is True
+    with pytest.raises(one.Stop) as caught:  # answered but unreadable: held, with its request ID kept
+        one.send(FakeClient([Unreadable({}, {"x-request-id": "req-9"})]), {"input": "x"})
+    assert caught.value.outcome["held"] is True and caught.value.outcome["request_ids"][0]["x-request-id"] == "req-9"
+
+
+def test_flex_by_default_with_an_explicit_fallback_and_the_rate_limit_headers(tmp_path, monkeypatch):
+    monkeypatch.setattr(one._flex(), "backoff", lambda attempt: 0.0)
+    busy = "The service is temporarily unable to process your request. Please try again later."
+    client = FakeClient([
+        answered(tier="flex"),  # R01 on Flex
+        http_error(429, busy), http_error(429, busy), answered(tier="default"),  # R02: Flex refuses it twice, then Standard
+        http_error(400, "Flex tier is not supported for this request"), answered(tier="default"),  # R03: this line only
+    ], headers={"x-ratelimit-limit-tokens": "600000", "x-ratelimit-remaining-tokens": "591488", "x-request-id": "req-123"})
+    monkeypatch.setattr(batchlib, "make_client", lambda *args, **kwargs: client)
+    wd = tmp_path / "flex"
+    a = options(first=3, workdir=str(wd), base_url="https://example.invalid/openai/v1/", service_tier="flex", retries=1,
+                fallback_default=True)
+    assert aws.cmd_run(a) == 0
+    assert [c.get("service_tier") for c in client.calls] == ["flex", "flex", "flex", "default", "flex", "default"]
+    rows = {r["id"]: r for r in map(json.loads, (wd / "metrics.jsonl").read_text(encoding="utf-8").splitlines())}
+    assert rows["R01"]["service_tier"] == "flex" and not rows["R01"]["fallback"]
+    assert rows["R01"]["ratelimit_limit_tokens"] == 600000 and rows["R01"]["ratelimit_remaining_tokens"] == 591488
+    assert rows["R02"]["fallback"] and rows["R02"]["service_tier"] == "default" and rows["R02"]["tier_requested"] == "flex"
+    assert rows["R02"]["http_requests"] == 3 and rows["R02"]["throttled_attempts"] == 2 and rows["R02"]["throttle"] == "capacity"
+    assert rows["R03"]["fallback"] and rows["R03"]["service_tier"] == "default"
+    run = json.loads((wd / "run.json").read_text(encoding="utf-8"))
+    assert run["stopped"] is None and run["summary"]["fallbacks"] == 2 and run["summary"]["other_tier"] == 0
+    shareable = (wd / "metrics.jsonl").read_text(encoding="utf-8") + (wd / "summary.md").read_text(encoding="utf-8")
+    assert "req-123" not in shareable and "req-123" in (wd / "responses.jsonl").read_text(encoding="utf-8")
+
+    client = FakeClient([http_error(429, busy), http_error(429, busy), http_error(401)])  # the fallback stops the run
+    wd = tmp_path / "fallback-stopped"
+    a = options(first=1, workdir=str(wd), base_url="https://example.invalid/openai/v1/", service_tier="flex", retries=1,
+                fallback_default=True)
+    assert aws.cmd_run(a) == 1
+    [row] = [json.loads(x) for x in (wd / "metrics.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert row["http_requests"] == 3 and row["fallback"] and row["tier_requested"] == "flex" and row["throttled_attempts"] == 2
 
 
 def test_the_agent_gets_the_model_instructions_and_tool_and_a_toolbox_is_refused():
@@ -299,3 +372,4 @@ def test_plan_prints_the_request_and_sends_nothing():
                        cwd=SAMPLE, capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
     assert "POST <base url>responses" in r.stdout and '"type": "web_search"' in r.stdout and "plan sends nothing" in r.stdout
+    assert '"service_tier": "flex"' in r.stdout  # Flex processing unless --service-tier says otherwise

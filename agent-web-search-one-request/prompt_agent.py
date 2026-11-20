@@ -30,6 +30,9 @@ API = f"api-version={_S['api_version']}"
 HTTP_TIMEOUT = float(_S["http_timeout_seconds"])
 SYSTEM_ROLES = ("system", "developer")
 WEB_SEARCH_TOOLS = ("web_search", "web_search_preview")
+# Learn, Foundry Agent Service quotas and limits: "Maximum number of versions per agent | 1,000"; one more is a terminal
+# HTTP 400 (https://learn.microsoft.com/en-us/azure/foundry/agents/concepts/limits-quotas-regions).
+MAX_VERSIONS = 1000
 # Line settings that go into the agent's definition, with the model, the instructions and the tools: the other fields of
 # a prompt agent's definition (PromptAgentDefinition in the Azure AI Projects SDK).
 DEFINITION_KEYS = ("text", "reasoning", "temperature", "top_p", "tool_choice")

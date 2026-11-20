@@ -169,16 +169,16 @@ For Flex with web search, use `--design bounded-web-search` and drop `--plan`, t
 
 ## Check one request with the web search tool
 
-To see what one line does as a single request, with the built-in `web_search` tool, use [agent_web_search.py](../agent-web-search-one-request/README.md). It sends the first lines of a records file, or of your own batch input file with `--lines`, once each:
+To see what one line does as a single request, with the built-in `web_search` tool, use [agent_web_search.py](../agent-web-search-one-request/README.md). It sends the first lines of a records file, or of your own batch input file with `--lines`, once each, on Flex processing (`service_tier: "flex"`) unless you pass `--service-tier default`:
 
-- `--mode request` sends them to a Global Standard deployment.
+- `--mode request` sends them to a Global Standard deployment of a model that supports Flex, such as gpt-6-sol.
 - `--mode agent` sends them through a Microsoft Foundry prompt agent with the tool attached directly.
 
-For each request it reports the `web_search_call` items, the billed search requests, the tokens and the time:
+For each request it reports the service tier that processed it, the `web_search_call` items, the billed search requests, the tokens, the time, the tries refused with HTTP 429 and the rate-limit headers. It retries HTTP 408, 429 and 5xx as Learn recommends for Flex: up to 5 more tries, backoff with jitter or the `Retry-After` the service sent, whichever is longer, and bounded waits ([Handle Flex errors](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/flex-processing#handle-flex-errors)):
 
 ```bash
 python agent-web-search-one-request/agent_web_search.py run samples/brand-owner/records.jsonl --first 10 --workdir runs/one-request \
-  --mode request --base-url https://<foundry-resource>.openai.azure.com/openai/v1/ --deployment <Global Standard deployment>
+  --mode request --base-url https://<foundry-resource>.openai.azure.com/openai/v1/ --deployment <Global Standard deployment of a Flex model>
 ```
 
 Agent mode needs the project endpoint (`--project-endpoint`) and the Foundry User role on the project. It creates the agent for the run and deletes it after.

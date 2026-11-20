@@ -155,8 +155,10 @@ api_version = "v1"                    # Foundry Agent Service REST API version, 
 foundry_scope = "https://ai.azure.com/.default"   # Microsoft Entra ID scope of a Foundry project endpoint
 agent_name_prefix = "web-search-one-request"      # the agent is named <prefix>-<UTC time>-<random> unless --agent-name names it
 first = 10                            # lines sent by default (--first)
-retries = 0                           # send each line once and show what happened; --retries 3 retries HTTP 408, 429 and 5xx
-client_timeout_seconds = 900          # per request
+retries = 5                           # extra tries after HTTP 408, 429 and 5xx; Learn suggests a maximum such as 5-10 (--retries 0 sends each line once)
+retry_budget_seconds = 900            # the most one line waits between its tries, in all; a wait that would pass it isn't started
+service_tier = "flex"                 # the service_tier each request asks for: Flex processing; --service-tier default asks for Standard
+client_timeout_seconds = 900          # per request; Learn suggests a timeout such as 15 minutes for Flex
 http_timeout_seconds = 60             # creating, checking and deleting the agent
 
 [forecast]

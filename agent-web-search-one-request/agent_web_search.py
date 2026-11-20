@@ -1,5 +1,6 @@
 r"""One request per line, with the web_search tool: each line goes to the Responses API as one request, directly or
-through a Microsoft Foundry prompt agent, and the run shows how many web searches ran inside each request.
+through a Microsoft Foundry prompt agent, on Flex processing by default, and the run shows how many web searches ran
+inside each request.
 
   plan    the request run would send for a line (with --mode agent, the agent's definition and a call); calls nothing
   run     send each line once and measure it:
@@ -9,18 +10,22 @@ through a Microsoft Foundry prompt agent, and the run shows how many web searche
   report  a run's table again, and its summary.md
 
 The input is records, built into option 1's lines (../option-1-bounded-web-search), or --lines, a Batch input file you
-already have. Bodies are sent as they are, apart from the changes you ask for, which are printed, and store: false. In
-agent mode a line's model, instructions, tools and other definition settings go into the agent and the rest of the line
-into each call; a line setting that neither takes is listed with the changes and not sent.
+already have. Bodies are sent as they are, apart from the changes you ask for, which are printed, store: false, and
+service_tier "flex" (--service-tier default asks for Standard, none leaves the line's own setting). Flex needs a Global
+Standard deployment of a model that supports it, such as gpt-6-sol. HTTP 408, 429 and 5xx are retried as Learn
+recommends for Flex: bounded tries, backoff with jitter, Retry-After honored, a wait budget; --fallback-default sends a
+line Flex refused once more on Standard. In agent mode a line's model, instructions, tools and other definition settings
+go into the agent and the rest of the line into each call; a line setting that neither takes is listed with the changes
+and not sent.
 
 Examples, from this folder:
   python agent_web_search.py plan ../samples/brand-owner/records.jsonl --first 2
   python agent_web_search.py run ../samples/brand-owner/records.jsonl --workdir runs/request --mode request \
-      --base-url https://<resource>.openai.azure.com/openai/v1/ --deployment <Global Standard deployment>
+      --base-url https://<resource>.openai.azure.com/openai/v1/ --deployment <Flex-capable Global Standard deployment>
   python agent_web_search.py run ../samples/brand-owner/records.jsonl --workdir runs/agent --mode agent \
       --project-endpoint https://<resource>.services.ai.azure.com/api/projects/<project> --deployment <model deployment>
   python agent_web_search.py run --lines my-batch-input.jsonl --first 5 --workdir runs/mine --mode request \
-      --base-url https://<resource>.openai.azure.com/openai/v1/ --deployment <Global Standard deployment>
+      --base-url https://<resource>.openai.azure.com/openai/v1/ --deployment <Flex-capable Global Standard deployment>
   python agent_web_search.py report runs/request
 """
 from __future__ import annotations
@@ -76,9 +81,11 @@ def load_lines(a) -> list[dict]:
 
 
 def requests_for(a, lines: list[dict]) -> tuple[list[tuple[str, dict]], list[str]]:
-    """Each line's request, and every change made to the lines. Lines built from records are option 1's as they are; a
-    --reasoning-effort on web-search lines, which option 1 leaves without one, is a change."""
+    """Each line's request, and every change made to the lines. Lines built from records are option 1's as they are,
+    with the service tier asked for (flex unless --service-tier none); a --reasoning-effort on web-search lines, which
+    option 1 leaves without one, is a change too."""
     built = bool(a.records)
+    tier = None if a.service_tier in (None, "none") else a.service_tier
     out: list[tuple[str, dict]] = []
     changes: list[str] = []
     for line in lines:
@@ -89,7 +96,7 @@ def requests_for(a, lines: list[dict]) -> tuple[list[tuple[str, dict]], list[str
             max_tool_calls=None if built else a.max_tool_calls,
             reasoning_effort=a.reasoning_effort if (not built or a.design == "web-search") else None,
             max_output_tokens=None if built else a.max_output_tokens,
-            service_tier=a.service_tier,
+            service_tier=tier,
             count_sources=a.count_sources,
         )
         out.append((str(line["custom_id"]), body))
@@ -118,6 +125,10 @@ def agent_calls(reqs: list[tuple[str, dict]]) -> tuple[list[tuple[str, dict, lis
         definition, given, call, left = prompt_agent.split_body(body)
         out.append((cid, definition, given, call))
         dropped += [k for k in left if k not in dropped]
+    versions = len({prompt_agent.definition_key(d) for _, d, _, _ in out})
+    if versions > prompt_agent.MAX_VERSIONS:
+        raise SystemExit(f"These lines need {versions} agent versions, one per distinct definition, and an agent holds at most "
+                         f"{prompt_agent.MAX_VERSIONS}. Send fewer lines (--first), or use --mode request.")
     return out, dropped
 
 
@@ -162,19 +173,23 @@ def _append(path: pathlib.Path, row: dict) -> None:
 
 
 def _record(wd: pathlib.Path, a, cid: str, outcome: dict, rows: dict) -> None:
-    """Keep the whole response locally (responses.jsonl, which holds search content: don't share it) and the shareable
-    numbers in metrics.jsonl, and print one line."""
+    """Keep the whole response locally (responses.jsonl, which holds search content and the request IDs: don't share it)
+    and the shareable numbers in metrics.jsonl, and print one line."""
     _append(wd / RESPONSES, {"custom_id": cid, **{k: outcome.get(k) for k in ("http_status", "http_requests", "seconds", "held",
-                                                                               "error_kind", "error", "response")}})
+                                                                               "error_kind", "error", "request_ids", "response")}})
     row = one.measure(cid, a.mode, outcome)
     _append(wd / METRICS, row)
     rows[cid] = row
+    via = f"{row['service_tier'] or row['tier_requested'] or 'deployment tier'}" + (", Standard fallback" if row["fallback"] else "")
+    refused = f", {row['throttled_attempts']} refused with HTTP 429 ({row['throttle']})" if row["throttled_attempts"] else ""
     if row["status"] is None:
-        print(f"  {cid}: {'held' if row['held'] else 'failed'} ({row['error_kind']}) after {row['http_requests']} HTTP request(s)", flush=True)
+        print(f"  {cid}: {'held' if row['held'] else 'failed'} ({row['error_kind']}) on {via} after {row['http_requests']} "
+              f"HTTP request(s){refused}", flush=True)
     else:
         billed = "not reported" if row["web_search_requests"] is None else row["web_search_requests"]
-        print(f"  {cid}: {row['status']} in {row['seconds']} s, {row['http_requests']} HTTP request(s), {row['web_search_calls']} "
-              f"web_search_call item(s) {one._cell(row['web_search_actions'])}, billed search requests {billed}", flush=True)
+        print(f"  {cid}: {row['status']} on {via} in {row['seconds']} s, {row['http_requests']} HTTP request(s){refused}, "
+              f"{row['web_search_calls']} web_search_call item(s) {one._cell(row['web_search_actions'])}, billed search "
+              f"requests {billed}", flush=True)
 
 
 class _CtrlC:
@@ -223,15 +238,35 @@ def send_all(client, jobs: list[tuple[str, dict, dict | None]], a, wd: pathlib.P
     stopped: str | None = None
     interrupted = False
     stop = threading.Event()
+    flex_worked = threading.Event()  # a response of this run came back on Flex: the deployment takes it
+    budget = float(_S["retry_budget_seconds"])
 
     def task(request: dict, extra: dict | None):
         if stop.is_set():
             return None  # the run stopped before this request was sent
         try:
-            return one.send(client, request, retries=a.retries, extra_body=extra, stop=stop)
-        except one.Stop:
-            stop.set()
-            raise
+            outcome = one.send(client, request, retries=a.retries, extra_body=extra, stop=stop, budget=budget,
+                               deployment=a.deployment)
+        except one.Stop as ex:
+            if not (ex.kind == "flex_unsupported" and flex_worked.is_set()):
+                stop.set()
+                raise
+            outcome = ex.outcome  # Flex took this run's other lines: it's this line's size or settings it doesn't take
+        if a.fallback_default and not stop.is_set() and one.falls_back(outcome):
+            # Learn: fall back to Standard when the retry budget is used up and the higher cost is acceptable, and make
+            # the fallback explicit (service_tier "default"). Sent once.
+            try:
+                again = one.send(client, {**request, "service_tier": "default"}, extra_body=extra, stop=stop,
+                                 deployment=a.deployment)
+            except one.Stop as ex:
+                if ex.outcome is not None:
+                    ex.outcome = one.with_fallback(outcome, ex.outcome)  # keep the Flex tries in the line's record
+                stop.set()
+                raise
+            outcome = one.with_fallback(outcome, again)
+        if (outcome.get("response") or {}).get("service_tier") == "flex":
+            flex_worked.set()
+        return outcome
 
     pool = cf.ThreadPoolExecutor(max_workers=max(1, a.concurrency))
     futures: dict[cf.Future, str] = {}
@@ -342,7 +377,9 @@ def _run(a) -> int:
     wd.mkdir(parents=True, exist_ok=True)
     timeout = float(_S["client_timeout_seconds"])
     run = {"command": "agent_web_search.py run", "mode": a.mode, "input": "lines" if a.lines else f"records, design {a.design}",
-           "lines": len(reqs), "changes": changes, "retries": a.retries, "concurrency": a.concurrency, "started_utc": now()}
+           "lines": len(reqs), "changes": changes, "service_tier": a.service_tier, "fallback_default": a.fallback_default,
+           "retries": a.retries, "retry_budget_seconds": float(_S["retry_budget_seconds"]),
+           "max_server_wait_seconds": one.MAX_SERVER_WAIT, "concurrency": a.concurrency, "started_utc": now()}
     print(f"{len(reqs)} line(s), {a.mode} mode: each sent once, as one HTTPS request.")
     _changes(changes)
     with _CtrlC() as ctrl_c:
@@ -408,8 +445,10 @@ def inputs(p) -> None:
     p.add_argument("--max-output-tokens", type=int, help="records: option 1's guardrail; --lines: a change to every line")
     p.add_argument("--tool", choices=one.WEB_SEARCH_TOOLS, help="change every line's web search tool to this type, for example "
                                                                 "web_search_preview to web_search")
-    p.add_argument("--service-tier", choices=("default", "flex", "priority"),
-                   help="flex: Flex processing, on a Flex-capable model such as gpt-6-sol")
+    p.add_argument("--service-tier", choices=("flex", "default", "priority", "none"), default=_S["service_tier"],
+                   help=f"the service_tier each request asks for (default {_S['service_tier']}: Flex processing, on a Global "
+                        "Standard deployment of a model that supports it, such as gpt-6-sol); default: Standard; none: "
+                        "leave each line's own setting")
     p.add_argument("--count-sources", action="store_true", help=f"add include {one.SOURCES}, to count the sources each search used")
     p.add_argument("--mode", choices=("request", "agent"), default="request",
                    help="request: the deployment's Responses API (default); agent: a prompt agent with web_search attached directly")
@@ -431,8 +470,13 @@ def main() -> None:
                                         f"time different names (default {_S['agent_name_prefix']}-<UTC time>-<random>)")
     p.add_argument("--keep-agent", action="store_true", help="agent mode: keep the agent after the run instead of deleting it")
     p.add_argument("--retries", type=int, default=int(_S["retries"]),
-                   help=f"extra tries after HTTP 408, 429 or 5xx, honoring Retry-After (default {_S['retries']}: send once and show "
-                        "what happened); a request that timed out is never sent again, because it may have been billed")
+                   help=f"extra tries after HTTP 408, 429 or 5xx (default {_S['retries']}; 0 sends each line once), each after "
+                        "max(backoff with jitter, Retry-After); a Retry-After over [flex] max_server_wait_seconds isn't waited "
+                        "out, and a line's waits stay within [agent_sample] retry_budget_seconds. A request that timed out is "
+                        "never sent again, because it may have been processed and billed")
+    p.add_argument("--fallback-default", action="store_true",
+                   help="after Flex refuses a line (HTTP 408, 429 or 5xx once its retries are used up, or a Flex HTTP 400 for "
+                        "that line only), send it once more with service_tier default: Standard processing, at Standard price")
     p.add_argument("--concurrency", type=int, default=1, help="requests in flight at once (default 1)")
     cli.subscription(p)
     p.set_defaults(fn=cmd_run)
