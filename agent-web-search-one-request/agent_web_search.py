@@ -29,6 +29,8 @@ import concurrent.futures as cf
 import datetime as dt
 import json
 import pathlib
+import secrets
+import signal
 import sys
 import threading
 from types import SimpleNamespace
@@ -150,7 +152,8 @@ def cmd_plan(a) -> int:
 
 
 def _agent_name() -> str:
-    return f"{_S['agent_name_prefix']}-{dt.datetime.now(dt.timezone.utc):%Y%m%d-%H%M%S}"
+    """A name no other run picks: the UTC time, and a random suffix for runs started in the same second."""
+    return f"{_S['agent_name_prefix']}-{dt.datetime.now(dt.timezone.utc):%Y%m%d-%H%M%S}-{secrets.token_hex(3)}"
 
 
 def _append(path: pathlib.Path, row: dict) -> None:
@@ -174,13 +177,48 @@ def _record(wd: pathlib.Path, a, cid: str, outcome: dict, rows: dict) -> None:
               f"web_search_call item(s) {one._cell(row['web_search_actions'])}, billed search requests {billed}", flush=True)
 
 
-def send_all(client, jobs: list[tuple[str, dict, dict | None]], a, wd: pathlib.Path) -> tuple[list[dict], str | None, bool]:
+class _CtrlC:
+    """Ctrl+C during a run. The first one stops it: send_all stops sending, and a run still creating its agent stops
+    there. After that, and once sending is over, Ctrl+C only prints a note, so the wait for the requests in flight
+    (which may be billed already), their recording, the agent's deletion and the run's files aren't cut short. Python
+    runs signal handlers on the main thread only, so this applies there, and only where Ctrl+C would otherwise raise
+    KeyboardInterrupt."""
+
+    NOTE = ("Ctrl+C: the run is finishing (the requests in flight, the agent's deletion, the run's files) and doesn't stop "
+            "for it; it ends on its own.")
+
+    def __init__(self) -> None:
+        self.armed = True  # until the first Ctrl+C, or until sending is over
+        self._previous = None
+
+    def _handler(self, signum, frame) -> None:
+        if self.armed:
+            self.armed = False
+            raise KeyboardInterrupt
+        try:
+            print(self.NOTE, file=sys.stderr, flush=True)
+        except (RuntimeError, OSError, ValueError):  # printing inside a signal handler can fail; the note isn't vital
+            pass
+
+    def __enter__(self) -> "_CtrlC":
+        if threading.current_thread() is threading.main_thread() and signal.getsignal(signal.SIGINT) is signal.default_int_handler:
+            self._previous = signal.signal(signal.SIGINT, self._handler)
+        return self
+
+    def __exit__(self, *exc) -> None:
+        if self._previous is not None:
+            signal.signal(signal.SIGINT, self._previous)
+            self._previous = None
+
+
+def send_all(client, jobs: list[tuple[str, dict, dict | None]], a, wd: pathlib.Path,
+             ctrl_c: _CtrlC | None = None) -> tuple[list[dict], str | None, bool]:
     """Send every request once (a few at a time with --concurrency) and record each answer as it comes back.
 
-    An error every request would get stops the run, and so does Ctrl+C: requests not sent yet aren't sent, the ones in
-    flight finish and are recorded, and the answers already back are kept. Any other error here also stops the sending
-    before it's raised. Returns the rows in the lines' order, why the run stopped early (or None), and whether that was
-    Ctrl+C."""
+    An error every request would get stops the run, and so does Ctrl+C: requests not sent yet aren't sent, a request
+    waiting to retry isn't tried again, and the ones in flight finish and are recorded, as are the answers already back.
+    Any other error here also stops the sending before it's raised. Returns the rows in the lines' order, why the run
+    stopped early (or None), and whether that was Ctrl+C."""
     rows: dict[str, dict] = {}
     stopped: str | None = None
     interrupted = False
@@ -190,13 +228,13 @@ def send_all(client, jobs: list[tuple[str, dict, dict | None]], a, wd: pathlib.P
         if stop.is_set():
             return None  # the run stopped before this request was sent
         try:
-            return one.send(client, request, retries=a.retries, extra_body=extra)
+            return one.send(client, request, retries=a.retries, extra_body=extra, stop=stop)
         except one.Stop:
             stop.set()
             raise
 
     pool = cf.ThreadPoolExecutor(max_workers=max(1, a.concurrency))
-    futures = {pool.submit(task, req, extra): cid for cid, req, extra in jobs}
+    futures: dict[cf.Future, str] = {}
 
     def collect(fut) -> None:
         nonlocal stopped
@@ -210,8 +248,10 @@ def send_all(client, jobs: list[tuple[str, dict, dict | None]], a, wd: pathlib.P
         if outcome is not None:
             _record(wd, a, futures[fut], outcome, rows)
 
-    pending = set(futures)
     try:
+        for cid, req, extra in jobs:  # submitted inside the try, so Ctrl+C here also cancels what's queued
+            futures[pool.submit(task, req, extra)] = cid
+        pending = set(futures)
         while pending:
             # Short waits, so Ctrl+C is noticed while requests are in flight (on Windows, a wait without a timeout may not be).
             done, pending = cf.wait(pending, timeout=0.5, return_when=cf.FIRST_COMPLETED)
@@ -222,14 +262,18 @@ def send_all(client, jobs: list[tuple[str, dict, dict | None]], a, wd: pathlib.P
                     f.cancel()
     except KeyboardInterrupt:
         interrupted, stopped = True, "interrupted (Ctrl+C)"
-        stop.set()
-        pool.shutdown(wait=True, cancel_futures=True)  # nothing more is sent; the requests in flight finish
-        for fut in futures:
+    finally:
+        stop.set()  # nothing more is sent, and a request waiting to retry isn't tried again
+        if ctrl_c is not None:
+            ctrl_c.armed = False  # from here on, Ctrl+C doesn't cut short the wait or the recording
+        busy = sum(1 for f in futures if f.running())
+        if interrupted and busy:
+            print(f"Ctrl+C: nothing more is sent. Waiting for up to {busy} request(s) in flight, which may be billed already, "
+                  "so their answers are kept.", file=sys.stderr, flush=True)
+        pool.shutdown(wait=True, cancel_futures=True)
+        for fut in list(futures):
             if fut.done():
                 collect(fut)
-    finally:
-        stop.set()
-        pool.shutdown(wait=True, cancel_futures=True)
     return [rows[cid] for cid, _, _ in jobs if cid in rows], stopped, interrupted
 
 
@@ -241,6 +285,48 @@ def cmd_run(a) -> int:
         return exits.INTERRUPTED
 
 
+def _connect(a, reqs: list[tuple[str, dict]], calls, timeout: float):
+    """The client the lines are sent with, and each line's job: (custom_id, request, extra body). In agent mode also the
+    project, and the agent this run creates, with one version per distinct definition."""
+    if a.mode == "request":
+        if not a.base_url:
+            raise SystemExit("--mode request needs --base-url https://<resource>.openai.azure.com/openai/v1/")
+        import batch as batchlib
+
+        client = batchlib.make_client(a.base_url, a.subscription, timeout=timeout, max_retries=0)
+        return client, [(cid, body, None) for cid, body in reqs], None, None
+    if not a.project_endpoint:
+        raise SystemExit("--mode agent needs --project-endpoint https://<resource>.services.ai.azure.com/api/projects/<project>")
+    project = prompt_agent.Project(a.project_endpoint, a.subscription)
+    agent = {"name": a.agent_name or _agent_name(), "versions": {}}
+    if project.exists(agent["name"]):
+        raise SystemExit(f"The project already has an agent named '{agent['name']}'. Pass another --agent-name; nothing was changed.")
+    client = project.openai_client(timeout)
+    jobs = []
+    try:
+        for cid, definition, given, call in calls:
+            key = prompt_agent.definition_key(definition)
+            if key not in agent["versions"]:
+                agent["versions"][key] = project.create_version(agent["name"], definition)
+                print(f"Created agent '{agent['name']}' version {agent['versions'][key]}: model {definition['model']}, "
+                      f"tools {[t.get('type') for t in definition['tools']]} attached directly.", flush=True)
+            jobs.append((cid, {"input": given, **call}, prompt_agent.reference(agent["name"], agent["versions"][key])))
+    except BaseException:
+        print(f"Agent '{agent['name']}': {project.delete(agent['name'], list(agent['versions'].values()))}")
+        raise
+    return client, jobs, project, agent
+
+
+def _delete_agent(project, agent: dict | None, a) -> None:
+    if agent is None:
+        return
+    if a.keep_agent:
+        agent["cleanup"] = "kept (--keep-agent): delete it in the project when you're done"
+    else:
+        agent["cleanup"] = project.delete(agent["name"], list(agent["versions"].values()))
+    print(f"Agent '{agent['name']}': {agent['cleanup']}")
+
+
 def _run(a) -> int:
     wd = pathlib.Path(a.workdir)
     if (wd / METRICS).exists():
@@ -249,6 +335,7 @@ def _run(a) -> int:
         raise SystemExit("run needs --deployment: the model deployment the requests name.")
     lines = load_lines(a)
     reqs, changes = requests_for(a, lines)
+    calls = None
     if a.mode == "agent":
         calls, dropped = agent_calls(reqs)
         changes += _not_sent(dropped)
@@ -258,60 +345,28 @@ def _run(a) -> int:
            "lines": len(reqs), "changes": changes, "retries": a.retries, "concurrency": a.concurrency, "started_utc": now()}
     print(f"{len(reqs)} line(s), {a.mode} mode: each sent once, as one HTTPS request.")
     _changes(changes)
-    project = agent = None
-    if a.mode == "request":
-        if not a.base_url:
-            raise SystemExit("--mode request needs --base-url https://<resource>.openai.azure.com/openai/v1/")
-        import batch as batchlib
-
-        client = batchlib.make_client(a.base_url, a.subscription, timeout=timeout, max_retries=0)
-        jobs = [(cid, body, None) for cid, body in reqs]
-    else:
-        if not a.project_endpoint:
-            raise SystemExit("--mode agent needs --project-endpoint https://<resource>.services.ai.azure.com/api/projects/<project>")
-        project = prompt_agent.Project(a.project_endpoint, a.subscription)
-        agent = {"name": a.agent_name or _agent_name(), "versions": {}}
-        if project.exists(agent["name"]):
-            raise SystemExit(f"The project already has an agent named '{agent['name']}'. Pass another --agent-name; nothing was changed.")
-        client = project.openai_client(timeout)
-        jobs = []
+    with _CtrlC() as ctrl_c:
+        client, jobs, project, agent = _connect(a, reqs, calls, timeout)
         try:
-            for cid, definition, given, call in calls:
-                key = prompt_agent.definition_key(definition)
-                if key not in agent["versions"]:
-                    agent["versions"][key] = project.create_version(agent["name"], definition)
-                    print(f"Created agent '{agent['name']}' version {agent['versions'][key]}: model {definition['model']}, "
-                          f"tools {[t.get('type') for t in definition['tools']]} attached directly.", flush=True)
-                jobs.append((cid, {"input": given, **call}, prompt_agent.reference(agent["name"], agent["versions"][key])))
-        except BaseException:
-            print(f"Agent '{agent['name']}': {project.delete(agent['name'], list(agent['versions'].values()))}")
-            raise
-    stopped, interrupted = None, False
-    rows: list[dict] = []
-    try:
-        rows, stopped, interrupted = send_all(client, jobs, a, wd)
+            rows, stopped, interrupted = send_all(client, jobs, a, wd, ctrl_c)
+        finally:
+            ctrl_c.armed = False  # sending is over: Ctrl+C doesn't cut the agent's deletion short
+            _delete_agent(project, agent, a)
         write_jsonl(wd / METRICS, rows)  # appended as answers came back; rewritten in the lines' order
-    finally:
-        if agent is not None:
-            if a.keep_agent:
-                agent["cleanup"] = "kept (--keep-agent): delete it in the project when you're done"
-            else:
-                agent["cleanup"] = project.delete(agent["name"], list(agent["versions"].values()))
-            print(f"Agent '{agent['name']}': {agent['cleanup']}")
-    responses = [json.loads(x)["response"] for x in (wd / RESPONSES).read_text(encoding="utf-8").splitlines() if x.strip()] if (wd / RESPONSES).exists() else []
-    answered = [r for r in responses if r]
-    run.update(
-        finished_utc=now(),
-        stopped=stopped,
-        not_sent=len(reqs) - len(rows),
-        agent={"name": agent["name"], "versions": list(agent["versions"].values()), "cleanup": agent.get("cleanup")} if agent else None,
-        models=sorted({str(r.get("model")) for r in answered if r.get("model")}),
-        service_tiers=sorted({str(r.get("service_tier")) for r in answered if r.get("service_tier")}),
-        tools=sorted({str(t.get("type")) for _, b in reqs for t in b.get("tools") or []}),
-        summary=one.summarize(rows),
-    )
-    write_json(wd / RUN, run)
-    (wd / SUMMARY).write_text(one.summary_markdown(run, rows), encoding="utf-8", newline="\n")
+        responses = [json.loads(x)["response"] for x in (wd / RESPONSES).read_text(encoding="utf-8").splitlines() if x.strip()] if (wd / RESPONSES).exists() else []
+        answered = [r for r in responses if r]
+        run.update(
+            finished_utc=now(),
+            stopped=stopped,
+            not_sent=len(reqs) - len(rows),
+            agent={"name": agent["name"], "versions": list(agent["versions"].values()), "cleanup": agent.get("cleanup")} if agent else None,
+            models=sorted({str(r.get("model")) for r in answered if r.get("model")}),
+            service_tiers=sorted({str(r.get("service_tier")) for r in answered if r.get("service_tier")}),
+            tools=sorted({str(t.get("type")) for _, b in reqs for t in b.get("tools") or []}),
+            summary=one.summarize(rows),
+        )
+        write_json(wd / RUN, run)
+        (wd / SUMMARY).write_text(one.summary_markdown(run, rows), encoding="utf-8", newline="\n")
     print()
     print(one.table(rows))
     s = run["summary"]
@@ -372,7 +427,8 @@ def main() -> None:
     p.add_argument("--workdir", required=True, help="a new folder for this run's files")
     p.add_argument("--base-url", help="request mode: https://<resource>.openai.azure.com/openai/v1/")
     p.add_argument("--project-endpoint", help="agent mode: https://<resource>.services.ai.azure.com/api/projects/<project>")
-    p.add_argument("--agent-name", help=f"agent mode: the agent's name, which mustn't exist yet (default {_S['agent_name_prefix']}-<UTC time>)")
+    p.add_argument("--agent-name", help=f"agent mode: the agent's name, which mustn't exist yet; give runs you start at the same "
+                                        f"time different names (default {_S['agent_name_prefix']}-<UTC time>-<random>)")
     p.add_argument("--keep-agent", action="store_true", help="agent mode: keep the agent after the run instead of deleting it")
     p.add_argument("--retries", type=int, default=int(_S["retries"]),
                    help=f"extra tries after HTTP 408, 429 or 5xx, honoring Retry-After (default {_S['retries']}: send once and show "

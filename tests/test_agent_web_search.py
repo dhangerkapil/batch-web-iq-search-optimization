@@ -2,6 +2,7 @@
 web_search tool attached directly, and the searches happen inside that one request."""
 import json
 import pathlib
+import signal
 import subprocess
 import sys
 import threading
@@ -147,6 +148,12 @@ def test_only_408_429_and_5xx_are_retried_and_a_timeout_is_never_sent_again():
     outcome = one.send(client, {"input": "x"}, retries=3, sleep=waits.append)
     assert len(client.calls) == 1 and outcome["held"] is True and outcome["error_kind"] == "timeout"
 
+    stopped = threading.Event()
+    stopped.set()  # the run has stopped: a request waiting to retry isn't sent again, and the wait ends at once
+    client = FakeClient([http_error(429, headers={"retry-after": "30"}), answered()])
+    outcome = one.send(client, {"input": "x"}, retries=3, stop=stopped)
+    assert len(client.calls) == 1 and outcome["error_kind"] == "http_429" and outcome["seconds"] < 5
+
     with pytest.raises(one.Stop):
         one.send(FakeClient([http_error(401)]), {"input": "x"})
     with pytest.raises(one.Stop):
@@ -181,14 +188,18 @@ def test_agent_mode_lists_the_line_settings_it_has_no_place_for(tmp_path, capsys
     assert '"temperature": 0.2' in out  # a definition setting: it goes into the agent
 
 
-def test_ctrl_c_stops_sending_and_still_writes_the_run_files(tmp_path, monkeypatch, capsys):
-    in_flight = threading.Event()
+def test_ctrl_c_stops_sending_and_pressing_it_again_loses_no_answer(tmp_path, monkeypatch, capsys):
+    original = signal.getsignal(signal.SIGINT)
+    in_flight, pressed = threading.Event(), threading.Event()
 
     class InFlight(FakeClient):
         def create(self, **kwargs):
-            if self.calls:  # the second line
+            if self.calls:  # the second line, in flight when Ctrl+C comes
                 in_flight.set()
-                time.sleep(0.5)  # still in flight when Ctrl+C comes
+                assert pressed.wait(5)
+                if signal.getsignal(signal.SIGINT) is not original:  # only to the run's handler, which can't stop pytest
+                    signal.raise_signal(signal.SIGINT)  # Ctrl+C again, while the run waits for this line
+                time.sleep(0.5)  # the run stops sending before this line ends
             return super().create(**kwargs)
 
     client = InFlight([answered(), answered(), answered()])
@@ -199,7 +210,10 @@ def test_ctrl_c_stops_sending_and_still_writes_the_run_files(tmp_path, monkeypat
         seen.append(args[2])
         if len(seen) == 1:
             assert in_flight.wait(5)
-            raise KeyboardInterrupt  # Ctrl+C while the first answer is recorded and the second line is in flight
+            try:
+                signal.raise_signal(signal.SIGINT)  # Ctrl+C while the first answer is recorded and the second line is in flight
+            finally:
+                pressed.set()
         return real(*args)
 
     monkeypatch.setattr(aws, "_record", record)
@@ -209,7 +223,9 @@ def test_ctrl_c_stops_sending_and_still_writes_the_run_files(tmp_path, monkeypat
     run = json.loads((wd / "run.json").read_text(encoding="utf-8"))
     assert run["stopped"] == "interrupted (Ctrl+C)" and run["not_sent"] == 1
     assert [json.loads(x)["id"] for x in (wd / "metrics.jsonl").read_text(encoding="utf-8").splitlines()] == ["R01", "R02"]
-    assert "doesn't resume" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert aws._CtrlC.NOTE in err and "doesn't resume" in err
+    assert signal.getsignal(signal.SIGINT) is original
 
 
 class FakeProject:

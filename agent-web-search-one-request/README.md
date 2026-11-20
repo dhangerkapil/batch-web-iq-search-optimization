@@ -76,7 +76,7 @@ python agent_web_search.py report runs/request
 
 Add `--service-tier flex` for Flex processing, `--retries 3` to retry HTTP 408, 429 and 5xx (the default sends each line once and shows what happened), and `--concurrency 2` for two lines in flight. With records, `--design bounded-web-search` sends option 1's bounded line instead of the line as a job runs today.
 
-**Stopping a run.** An error every request would get (sign-in, access, a missing deployment, a model without Flex) stops the run, and so does Ctrl+C: lines not sent yet aren't sent, the ones in flight finish and are recorded, and `run.json` and `summary.md` are written for what came back. An agent the run created is deleted, unless `--keep-agent`. This is a measuring tool, not a job runner: it doesn't resume. Run it again with a new `--workdir`, and every line is sent again. It exits with 0 when every line came back completed, 1 otherwise, and 130 after Ctrl+C.
+**Stopping a run.** An error every request would get (sign-in, access, a missing deployment, a model without Flex) stops the run, and so does Ctrl+C: lines not sent yet aren't sent, a line waiting to retry isn't tried again, the ones in flight finish and are recorded (they may be billed already), and `run.json` and `summary.md` are written for what came back. Pressing Ctrl+C again only prints a note, so that wait isn't cut short. An agent the run created is deleted, unless `--keep-agent`. This is a measuring tool, not a job runner: it doesn't resume. Run it again with a new `--workdir`, and every line is sent again. It exits with 0 when every line came back completed, 1 otherwise, and 130 after Ctrl+C.
 
 **What's changed before sending.** Lines built from records are option 1's, exactly. With `--lines`, the body is sent as it is, except:
 
@@ -102,7 +102,7 @@ In agent mode the line is split: the model, system messages, tools, `text`, `rea
 | --- | --- | --- |
 | `[agent_sample] api_version`: the Foundry Agent Service REST API version | [154](../shared/settings.toml#L154) | `v1` |
 | `[agent_sample] foundry_scope`: the Entra ID scope of the project endpoint | [155](../shared/settings.toml#L155) | `https://ai.azure.com/.default` |
-| `[agent_sample] agent_name_prefix`: the agent is `<prefix>-<UTC time>` unless `--agent-name` names it; a name that exists is refused | [156](../shared/settings.toml#L156) | `web-search-one-request` |
+| `[agent_sample] agent_name_prefix`: the agent is `<prefix>-<UTC time>-<random>` unless `--agent-name` names it; a name that exists is refused, so give runs you start at the same time different names | [156](../shared/settings.toml#L156) | `web-search-one-request` |
 | `[agent_sample] first`: lines sent (`--first`) | [157](../shared/settings.toml#L157) | `10` |
 | `[agent_sample] retries`: extra tries after HTTP 408, 429 and 5xx (`--retries`) | [158](../shared/settings.toml#L158) | `0` |
 | `[azure_openai] token_scope`: the Entra ID scope of the account endpoint (request mode) | [93](../shared/settings.toml#L93) | `https://cognitiveservices.azure.com/.default` |

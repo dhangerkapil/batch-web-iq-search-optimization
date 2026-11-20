@@ -39,8 +39,8 @@ The request for R01: POST <base url>responses, for example https://<resource>.op
 
 (The prompt is shortened here; `plan` prints it whole.)
 
-- **The lines.** [load_lines](agent_web_search.py#L50) builds them with option 1's code, the same lines `bounded_web_search.py` would submit: `--design web-search` (the default) is the line as a batch job runs today, and `--design bounded-web-search` is option 1's bounded line. With `--lines`, it reads your batch input file instead.
-- **The request.** [requests_for](agent_web_search.py#L76) makes each line's request with [apply_overrides](one_request.py#L56). The body is the line's body. The only changes are the ones you ask for (`--deployment` with `--lines`, `--tool`, `--service-tier`, `--reasoning-effort`, ...) and `store: false`, and every change is printed. A test checks that requests built from records equal option 1's batch lines.
+- **The lines.** [load_lines](agent_web_search.py#L52) builds them with option 1's code, the same lines `bounded_web_search.py` would submit: `--design web-search` (the default) is the line as a batch job runs today, and `--design bounded-web-search` is option 1's bounded line. With `--lines`, it reads your batch input file instead.
+- **The request.** [requests_for](agent_web_search.py#L78) makes each line's request with [apply_overrides](one_request.py#L56). The body is the line's body. The only changes are the ones you ask for (`--deployment` with `--lines`, `--tool`, `--service-tier`, `--reasoning-effort`, ...) and `store: false`, and every change is printed. A test checks that requests built from records equal option 1's batch lines.
 
 ## Step 2 - Send one line
 
@@ -58,9 +58,9 @@ The lines are sent exactly as built: no changes.
 [send](one_request.py#L91) makes one `responses.create` call, with the SDK's own retries off ([make_client](../shared/batch.py#L38) with `max_retries=0`), so the count of HTTP requests is exact:
 
 - **The answer comes back in that one response.** Nothing is sent back to the model, there's no `previous_response_id`, and there's no loop over tool calls.
-- **Retries only with `--retries`, only after HTTP 408, 429 or 5xx,** honoring `Retry-After`, otherwise backing off with jitter ([line 110](one_request.py#L110)).
-- **A timeout or a dropped connection is held, never resent,** because the service may have processed and billed the request ([line 107](one_request.py#L107)).
-- **HTTP 401, 403 and 404 stop the run,** because every request would get them, and so does HTTP 400 "Flex tier is not supported for this deployment" ([line 104](one_request.py#L104)). [send_all](agent_web_search.py#L177) then sends nothing more; Ctrl+C stops it the same way, after the requests in flight finish.
+- **Retries only with `--retries`, only after HTTP 408, 429 or 5xx,** honoring `Retry-After`, otherwise backing off with jitter ([line 111](one_request.py#L111)). Once the run stops, a line waiting to retry isn't tried again.
+- **A timeout or a dropped connection is held, never resent,** because the service may have processed and billed the request ([line 108](one_request.py#L108)).
+- **HTTP 401, 403 and 404 stop the run,** because every request would get them, and so does HTTP 400 "Flex tier is not supported for this deployment" ([line 105](one_request.py#L105)). [send_all](agent_web_search.py#L214) then sends nothing more; Ctrl+C stops it the same way, after the requests in flight finish.
 
 ## Step 3 - What came back: the searches inside the response
 
@@ -95,14 +95,14 @@ This is a real response's structure, with each query, URL and the answer replace
 
 ## Step 4 - How a response is measured
 
-[measure](one_request.py#L125) reads the response with [response_metrics](../shared/batch.py#L271), the code the Batch and Flex paths use, and adds:
+[measure](one_request.py#L130) reads the response with [response_metrics](../shared/batch.py#L271), the code the Batch and Flex paths use, and adds:
 
 - the queries in the `search` actions;
 - the sources, with `--count-sources`, which adds `include: ["web_search_call.action.sources"]`;
 - the URL citations in the answer;
 - the output items a client would have to answer (`function_call` and similar; 0 in every run).
 
-It keeps only the fields in [METRIC_FIELDS](one_request.py#L35), so `metrics.jsonl` and `summary.md` hold counts and never response text. When a response has no `tool_usage`, the billed count is `None`, shown as "not reported", and not 0 ([line 141](one_request.py#L141)).
+It keeps only the fields in [METRIC_FIELDS](one_request.py#L35), so `metrics.jsonl` and `summary.md` hold counts and never response text. When a response has no `tool_usage`, the billed count is `None`, shown as "not reported", and not 0 ([line 146](one_request.py#L146)).
 
 ## Step 5 - The same line through a prompt agent
 
@@ -123,8 +123,8 @@ Then one call per line. For R01: POST <project endpoint>/openai/v1/responses
 - **The split.** [split_body](prompt_agent.py#L48) moves the line's model, system messages, tools, output schema (`text`), reasoning effort and the other settings a prompt agent's definition takes (`temperature`, `top_p`, `tool_choice`: [DEFINITION_KEYS](prompt_agent.py#L35)) into the definition, because "the model and tool settings belong to the agent definition, not the invocation request" ([Web search tool, image search](https://learn.microsoft.com/en-us/azure/foundry/agents/how-to/tools/web-search#image-search-results)). The rest of the line's messages are the call's input. A line setting that neither the definition nor the call takes, such as `metadata`, isn't sent, and `plan` and `run` list it with the changes.
 - **What each call carries.** Besides the input, a call sends `max_output_tokens`, `max_tool_calls`, `service_tier` and `store`. All four were accepted, and the agent's responses reported `service_tier` "flex" when a call asked for it.
 - **No toolbox.** `split_body` refuses any tool other than `web_search`, including a toolbox attached as an MCP tool: through a toolbox, web search uses Grounding with Bing Search, not Web IQ ([Web search tool](https://learn.microsoft.com/en-us/azure/foundry/agents/how-to/tools/web-search#add-web-search-directly-to-an-agent)).
-- **The REST calls** are the ones Learn shows for a prompt agent: [create_version](prompt_agent.py#L120) (`POST {project}/agents/{name}/versions`), the call with `agent_reference` through the project's Responses API ([openai_client](prompt_agent.py#L137)), and [delete](prompt_agent.py#L126) (`DELETE {project}/agents/{name}/versions/{version}`, then the agent).
-- **Naming and cleanup.** The run ([_run](agent_web_search.py#L244)) refuses a name that exists, creates one version per distinct definition, and deletes the agent when the run ends, also after an error or Ctrl+C, unless `--keep-agent`.
+- **The REST calls** are the ones Learn shows for a prompt agent: [create_version](prompt_agent.py#L130) (`POST {project}/agents/{name}/versions`), the call with `agent_reference` through the project's Responses API ([openai_client](prompt_agent.py#L147)), and [delete](prompt_agent.py#L136) (`DELETE {project}/agents/{name}/versions/{version}`, then the agent).
+- **Naming and cleanup.** The run ([_run](agent_web_search.py#L330)) refuses a name that exists, creates one version per distinct definition, and deletes the agent when the run ends, also after an error or Ctrl+C, unless `--keep-agent`.
 
 ```bash
 python agent_web_search.py run ../samples/brand-owner/records.jsonl --workdir runs/agent --mode agent \
@@ -132,10 +132,10 @@ python agent_web_search.py run ../samples/brand-owner/records.jsonl --workdir ru
 ```
 
 ```text
-Created agent 'web-search-one-request-<UTC time>' version 1: model <deployment>, tools ['web_search'] attached directly.
+Created agent 'web-search-one-request-<UTC time>-<random>' version 1: model <deployment>, tools ['web_search'] attached directly.
   R01: completed in 16.08 s, 1 HTTP request(s), 1 web_search_call item(s) search 1, billed search requests not reported
   ...
-Agent 'web-search-one-request-<UTC time>': deleted (GET returns 404)
+Agent 'web-search-one-request-<UTC time>-<random>': deleted (GET returns 404)
 ```
 
 Responses through the project endpoint carry no `tool_usage`, hence "not reported": read the searches on your bill. Each record's tool settings belong to the agent. With option 1's bounded line, whose `user_location` is the record's market, each distinct country gets its own agent version.
@@ -172,7 +172,7 @@ Changes made to the lines before sending them:
 | HTTP 401 or 403 (stops the run) | Sign in (`az login`, with `--subscription` if you use several), and check your role: Foundry User for agent mode |
 | "The project already has an agent named ..." | Agent mode never reuses an agent: pass another `--agent-name` |
 | "... already holds a run" | Each run writes to a new `--workdir`, so no line is sent twice by mistake |
-| You pressed Ctrl+C (exit code 130) | Lines not sent yet weren't sent; the ones in flight finished and were recorded, and `run.json` and `summary.md` cover what came back. An agent the run created was deleted, unless `--keep-agent`. The command doesn't resume: run it again with a new `--workdir`, and every line is sent again |
+| You pressed Ctrl+C (exit code 130) | Lines not sent yet weren't sent, and a line waiting to retry wasn't tried again; the ones in flight finished and were recorded, and `run.json` and `summary.md` cover what came back. Pressing Ctrl+C again while it waits only prints a note. An agent the run created was deleted, unless `--keep-agent`. The command doesn't resume: run it again with a new `--workdir`, and every line is sent again |
 | "Agent mode attaches only the web_search tool, directly" | The line has another tool, such as an MCP tool for a toolbox. Use request mode, or remove that tool |
 | A response with no `web_search_call` | The model answered without searching. That's its choice: prompt it to search, or set `tool_choice` in the line |
 | `--lines` refuses the file | It takes Responses API lines (`url` `/v1/responses`, with a `body`) |

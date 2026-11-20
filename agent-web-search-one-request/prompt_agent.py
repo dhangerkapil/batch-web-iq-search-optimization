@@ -92,15 +92,25 @@ class Project:
         self.subscription = subscription
         self._http = http  # tests pass a fake
         self._cred = credential
+        self._provider = None
 
     def _credential(self):
         if self._cred is None:
             self._cred = _credential(self.subscription)
         return self._cred
 
+    def _tokens(self):
+        """One bearer-token provider for the REST calls and the Responses calls. It keeps the token until shortly before
+        it expires, so deleting the agent after a run normally needs no new sign-in call: with Azure CLI sign-in that's
+        an `az` process, which a Ctrl+C in the terminal would stop too."""
+        if self._provider is None:
+            from azure.identity import get_bearer_token_provider
+
+            self._provider = get_bearer_token_provider(self._credential(), _S["foundry_scope"])
+        return self._provider
+
     def _headers(self) -> dict:
-        token = self._credential().get_token(_S["foundry_scope"]).token
-        return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+        return {"Authorization": f"Bearer {self._tokens()()}", "Content-Type": "application/json"}
 
     def _client(self):
         if self._http is None:
@@ -136,8 +146,6 @@ class Project:
 
     def openai_client(self, timeout: float):
         """The OpenAI client for the project's Responses API (it takes agent_reference), with the SDK's retries off."""
-        from azure.identity import get_bearer_token_provider
         from openai import OpenAI
 
-        tokens = get_bearer_token_provider(self._credential(), _S["foundry_scope"])
-        return OpenAI(base_url=f"{self.endpoint}/openai/v1", api_key=tokens, timeout=timeout, max_retries=0)
+        return OpenAI(base_url=f"{self.endpoint}/openai/v1", api_key=self._tokens(), timeout=timeout, max_retries=0)

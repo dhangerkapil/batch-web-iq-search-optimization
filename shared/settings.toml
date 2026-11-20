@@ -153,7 +153,7 @@ max_round_wait_seconds = 3600         # cap on a pause that waits out a longer R
 [agent_sample]
 api_version = "v1"                    # Foundry Agent Service REST API version, for creating and deleting the agent
 foundry_scope = "https://ai.azure.com/.default"   # Microsoft Entra ID scope of a Foundry project endpoint
-agent_name_prefix = "web-search-one-request"      # the agent is named <prefix>-<UTC time> unless --agent-name names it
+agent_name_prefix = "web-search-one-request"      # the agent is named <prefix>-<UTC time>-<random> unless --agent-name names it
 first = 10                            # lines sent by default (--first)
 retries = 0                           # send each line once and show what happened; --retries 3 retries HTTP 408, 429 and 5xx
 client_timeout_seconds = 900          # per request

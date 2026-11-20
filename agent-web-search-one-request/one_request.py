@@ -88,9 +88,10 @@ def apply_overrides(body: dict, *, deployment: str | None = None, tool: str | No
     return b, changes
 
 
-def send(client, request: dict, *, retries: int = 0, extra_body: dict | None = None, sleep=time.sleep) -> dict:
+def send(client, request: dict, *, retries: int = 0, extra_body: dict | None = None, sleep=time.sleep, stop=None) -> dict:
     """Send one request with responses.create. Returns the response (a dict) or what went wrong, and how many HTTP
-    requests that took: one, unless retries allows another try after HTTP 408, 429 or 5xx."""
+    requests that took: one, unless retries allows another try after HTTP 408, 429 or 5xx. stop, a threading.Event, ends
+    the wait before a retry when the run stops, and then the request isn't sent again."""
     fx = _flex()
     t0, attempts = time.monotonic(), 0
     kwargs = {"extra_body": extra_body} if extra_body else {}
@@ -109,8 +110,12 @@ def send(client, request: dict, *, retries: int = 0, extra_body: dict | None = N
                 return {**done, "held": True, "error_kind": kind, "error": str(err)[:300]}
             if status in RETRY_STATUS and attempts <= retries:
                 wait = fx.retry_after(err)
-                sleep(fx.backoff(attempts) if wait is None else wait)
-                continue
+                pause = fx.backoff(attempts) if wait is None else wait
+                if stop is None:
+                    sleep(pause)
+                    continue
+                if not stop.wait(pause):  # True as soon as the run stops: no more tries
+                    continue
             return {**done, "held": False, "error_kind": f"http_{status}" if status else type(err).__name__, "error": str(err)[:300]}
         body = resp if isinstance(resp, dict) else resp.model_dump()
         return {"http_status": 200, "http_requests": attempts, "seconds": round(time.monotonic() - t0, 2), "response": body,
