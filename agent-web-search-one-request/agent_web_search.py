@@ -476,7 +476,8 @@ def main() -> None:
                         "never sent again, because it may have been processed and billed")
     p.add_argument("--fallback-default", action="store_true",
                    help="after Flex refuses a line (HTTP 408, 429 or 5xx once its retries are used up, or a Flex HTTP 400 for "
-                        "that line only), send it once more with service_tier default: Standard processing, at Standard price")
+                        "that line only), send it once more with service_tier default: Standard processing, at Standard price. "
+                        "Not after a 429 that reads as a quota limit: Standard shares the quota")
     p.add_argument("--concurrency", type=int, default=1, help="requests in flight at once (default 1)")
     cli.subscription(p)
     p.set_defaults(fn=cmd_run)

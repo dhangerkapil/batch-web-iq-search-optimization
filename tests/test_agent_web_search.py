@@ -232,6 +232,16 @@ def test_flex_by_default_with_an_explicit_fallback_and_the_rate_limit_headers(tm
     [row] = [json.loads(x) for x in (wd / "metrics.jsonl").read_text(encoding="utf-8").splitlines()]
     assert row["http_requests"] == 3 and row["fallback"] and row["tier_requested"] == "flex" and row["throttled_attempts"] == 2
 
+    limited = "Requests to the Responses_Create Operation have exceeded token rate limit of your current pricing tier."
+    client = FakeClient([http_error(429, limited), http_error(429, limited)])  # a quota limit: Standard shares it
+    wd = tmp_path / "no-fallback-on-quota"
+    a = options(first=1, workdir=str(wd), base_url="https://example.invalid/openai/v1/", service_tier="flex", retries=1,
+                fallback_default=True)
+    assert aws.cmd_run(a) == 1
+    [row] = [json.loads(x) for x in (wd / "metrics.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert [c.get("service_tier") for c in client.calls] == ["flex", "flex"] and row["throttle"] == "rate_limit"
+    assert not row["fallback"]
+
 
 def test_the_agent_gets_the_model_instructions_and_tool_and_a_toolbox_is_refused():
     body = {"model": "dep", "input": [{"role": "system", "content": "SYS"}, {"role": "user", "content": "REC"}],

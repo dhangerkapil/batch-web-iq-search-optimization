@@ -244,10 +244,15 @@ def send(client, request: dict, *, retries: int = 0, extra_body: dict | None = N
 def falls_back(outcome: dict) -> bool:
     """Whether --fallback-default sends this line again on Standard: Flex was asked for, and Flex refused it with an error
     retrying may fix (HTTP 408, 429 or 5xx, after its retries) or doesn't take this line (HTTP 400, Flex not supported)
-    while it took other lines. Never after a timeout or a dropped connection: that request may have been processed."""
+    while it took other lines. Not after a 429 whose message reads as a quota limit: Flex and Standard share the
+    deployment's quota, so Standard would likely be refused too, and Learn says to limit fallback to capacity-related
+    responses (https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/flex-processing#fall-back-to-standard-processing).
+    Never after a timeout or a dropped connection: that request may have been processed."""
     if outcome.get("tier_requested") != "flex" or outcome.get("response") is not None or outcome.get("held"):
         return False
     kind = str(outcome.get("error_kind") or "")
+    if kind == "http_429" and outcome.get("throttle") == "rate_limit":
+        return False
     return kind == "flex_unsupported" or kind in {f"http_{s}" for s in RETRY_STATUS}
 
 

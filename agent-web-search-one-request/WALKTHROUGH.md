@@ -65,7 +65,7 @@ Changes made to the lines before sending them:
 - **A timeout or a dropped connection is held, never resent,** because the service may have processed and billed the request ([line 204](one_request.py#L204)). So is an error that isn't HTTP, and it stops the run, as in the Flex runner.
 - **HTTP 401, 403 and 404 stop the run,** because every request would get them ([line 201](one_request.py#L201)), and so does HTTP 400 "Flex tier is not supported", with a hint to use `--service-tier default` ([line 196](one_request.py#L196)); once a line has come back on Flex, that 400 fails only its own line. [send_all](agent_web_search.py#L229) then sends nothing more; Ctrl+C stops it the same way, after the requests in flight finish.
 - **What each try leaves behind:** the four `x-ratelimit-*` headers of the last response, for `metrics.jsonl`; for an HTTP 429, its cause read from the message (`rate_limit` or `capacity`); and the request IDs (`x-request-id`, `apim-request-id`) of every try, for `responses.jsonl` only. Learn says to read the headers to tell a rate limit from busy capacity, and to compare `x-ratelimit-limit-tokens` with your quota ([Types of 429 errors](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/quota#types-of-429-errors)).
-- **`--fallback-default`**, off unless you pass it, sends a line Flex refused once more with `service_tier: "default"`, at Standard price: the explicit fallback Learn describes ([Fall back to Standard processing](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/flex-processing#fall-back-to-standard-processing)). Never after a timeout: that request may have been processed.
+- **`--fallback-default`**, off unless you pass it, sends a line Flex refused once more with `service_tier: "default"`, at Standard price: the explicit fallback Learn describes ([Fall back to Standard processing](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/flex-processing#fall-back-to-standard-processing)). Not after a 429 that reads as a quota limit, because Flex and Standard share the quota and Learn says to limit fallback to capacity-related responses; never after a timeout, because that request may have been processed.
 
 ## Step 3 - What came back: the searches inside the response
 
@@ -100,7 +100,7 @@ This is a real response's structure, with each query, URL and the answer replace
 
 ## Step 4 - How a response is measured
 
-[measure](one_request.py#L272) reads the response with [response_metrics](../shared/batch.py#L271), the code the Batch and Flex paths use, and adds:
+[measure](one_request.py#L277) reads the response with [response_metrics](../shared/batch.py#L271), the code the Batch and Flex paths use, and adds:
 
 - the queries in the `search` actions;
 - the sources, with `--count-sources`, which adds `include: ["web_search_call.action.sources"]`;
@@ -109,7 +109,7 @@ This is a real response's structure, with each query, URL and the answer replace
 - the service tier asked for, next to the one the response reports, and whether the line fell back to Standard: Learn's "track the processed tier";
 - the tries refused with HTTP 429 and their cause, the waits, and the `x-ratelimit-*` numbers.
 
-It keeps only the fields in [METRIC_FIELDS](one_request.py#L52), so `metrics.jsonl` and `summary.md` hold counts and never response text or request IDs. When a response has no `tool_usage`, the billed count is `None`, shown as "not reported", and not 0 ([line 290](one_request.py#L290)).
+It keeps only the fields in [METRIC_FIELDS](one_request.py#L52), so `metrics.jsonl` and `summary.md` hold counts and never response text or request IDs. When a response has no `tool_usage`, the billed count is `None`, shown as "not reported", and not 0 ([line 295](one_request.py#L295)).
 
 ## Step 5 - The same line through a prompt agent
 
@@ -176,7 +176,7 @@ Changes made to the lines before sending them:
 
 | What you see | Why, and what to do |
 | --- | --- |
-| HTTP 429, `throttle` `rate_limit` ("exceeded token rate limit") | The deployment's tokens or requests per minute. A request with web search can use tens of thousands of tokens in seconds. Raise the deployment's quota (Flex and Standard share it), or send fewer at once; the retries wait as asked. If `x-ratelimit-limit-tokens` is below your quota, the limit is lowered for a while: wait it out ([Types of 429 errors](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/quota#types-of-429-errors)) |
+| HTTP 429, `throttle` `rate_limit` ("exceeded token rate limit") | The deployment's tokens or requests per minute. A request with web search can use tens of thousands of tokens in seconds. Raise the deployment's quota (Flex and Standard share it), or send fewer at once; the retries wait as asked, and `--fallback-default` doesn't fall back, since Standard would hit the same quota. If `x-ratelimit-limit-tokens` is below your quota, the limit is lowered for a while: wait it out ([Types of 429 errors](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/quota#types-of-429-errors)) |
 | HTTP 429, `throttle` `capacity` | The service or Flex capacity is busy. More quota doesn't help: wait, run delay-tolerant work off-peak, or pass `--fallback-default` to finish such lines on Standard, at Standard price ([Handle Flex errors](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/flex-processing#handle-flex-errors)) |
 | A line failed after "asked to wait" longer than 600 s, or used up its 900 s of waits | Bounded on purpose, as Learn recommends. Run it again later, or use the Flex runner, which waits for its next round |
 | HTTP 400 "Flex tier is not supported ..." (stops the run) | The deployment's model doesn't take Flex. Use a model Learn lists for Flex, such as gpt-6-sol, or `--service-tier default` for Standard. After a line has come back on Flex, this 400 fails only its own line |
