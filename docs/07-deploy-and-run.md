@@ -167,6 +167,24 @@ python flex-web-search-and-web-iq/flex_job.py run samples/brand-owner/records.js
 
 For Flex with web search, use `--design bounded-web-search` and drop `--plan`, the toolbox and `--max-cost`. [Flex with web search or Web IQ](../flex-web-search-and-web-iq/README.md) explains the retry rules and how the cost is calculated, and its [walkthrough](../flex-web-search-and-web-iq/WALKTHROUGH.md) follows one request, attempt by attempt.
 
+## Check one request with the web search tool
+
+To see what one line does as a single request, with the built-in `web_search` tool, use [agent_web_search.py](../agent-web-search-one-request/README.md). It sends the first lines of a records file, or of your own batch input file with `--lines`, once each:
+
+- `--mode request` sends them to a Global Standard deployment.
+- `--mode agent` sends them through a Microsoft Foundry prompt agent with the tool attached directly.
+
+For each request it reports the `web_search_call` items, the billed search requests, the tokens and the time:
+
+```bash
+python agent-web-search-one-request/agent_web_search.py run samples/brand-owner/records.jsonl --first 10 --workdir runs/one-request \
+  --mode request --base-url https://<foundry-resource>.openai.azure.com/openai/v1/ --deployment <Global Standard deployment>
+```
+
+Agent mode needs the project endpoint (`--project-endpoint`) and the Foundry User role on the project. It creates the agent for the run and deletes it after.
+
+This is a measuring tool, not a job runner: it doesn't resume and has no rounds. It exits with 0 when every line came back completed, 1 otherwise, and 130 after Ctrl+C, which stops sending and still writes what came back. Run it again with a new `--workdir`.
+
 ## Run it unattended
 
 One `run` command per job takes it to the end without anyone watching. It retries what retrying can fix, and stops only for what it can't.

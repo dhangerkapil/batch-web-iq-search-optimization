@@ -148,6 +148,17 @@ auto_rounds = 3                       # rounds in all: lines that used up their 
 round_waits_seconds = [60, 300]       # pause before round 2 and round 3
 max_round_wait_seconds = 3600         # cap on a pause that waits out a longer Retry-After
 
+# The one-request sample (agent-web-search-one-request/agent_web_search.py): each line sent once to the Responses API,
+# directly or through a prompt agent that has the web_search tool attached directly, not through a toolbox.
+[agent_sample]
+api_version = "v1"                    # Foundry Agent Service REST API version, for creating and deleting the agent
+foundry_scope = "https://ai.azure.com/.default"   # Microsoft Entra ID scope of a Foundry project endpoint
+agent_name_prefix = "web-search-one-request"      # the agent is named <prefix>-<UTC time> unless --agent-name names it
+first = 10                            # lines sent by default (--first)
+retries = 0                           # send each line once and show what happened; --retries 3 retries HTTP 408, 429 and 5xx
+client_timeout_seconds = 900          # per request
+http_timeout_seconds = 60             # creating, checking and deleting the agent
+
 [forecast]
 default_output_tokens_per_line = 800  # for a model not listed below
 framing_tokens = 12                   # message framing the service adds per message (measured: a few tokens)

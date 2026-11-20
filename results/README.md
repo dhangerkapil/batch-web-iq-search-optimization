@@ -30,3 +30,7 @@ Not published, by design: evidence files and batch input files (they hold Web IQ
 **Removed before publishing.** R22 and R23 are fictional records. Nothing real matches them, so their searches returned pages about unrelated real businesses and people, including a personal profile page, company-registry officer pages and local news. Their findings and summaries are replaced with `[removed before publishing]` and their citation lists are emptied. Their statuses and suggested values are kept, so the accuracy table still reproduces. No personal-page URLs remained in the other records.
 
 The decisions are model output and can be wrong; [labels.jsonl](../samples/brand-owner/labels.jsonl) has the expected answers and sources.
+
+## 2026-11-20
+
+One request per line, with the built-in `web_search` tool: the first 10 records sent as single Responses API requests, directly and through a prompt agent, on Global Standard and Flex, plus one Global Batch job of the same lines, made with [agent_web_search.py](../agent-web-search-one-request/README.md). Each folder holds one run's `metrics.jsonl`, counts only, keyed by each line's `custom_id` (no answers, search content, URLs or response IDs). The command wrote each file itself, except the batch job's, which was converted from option 1's runner output. The runs and what they show: [2026-11-20-agent-web-search/README.md](2026-11-20-agent-web-search/README.md).

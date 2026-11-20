@@ -31,7 +31,7 @@ Twenty-three brand-ownership records, two facts each, on Global Batch, 31 Octobe
 
 Why it's cheaper:
 
-- **Search price.** Web IQ is $7 per 1,000 calls, against $14 per 1,000 Bing requests for the built-in tool, at list prices ([Web IQ pricing](https://learn.microsoft.com/en-us/web-iq/resources/pricing), [Grounding with Bing pricing](https://www.microsoft.com/en-us/bing/apis)).
+- **Search price.** Web IQ is $7 per 1,000 calls, against $14 per 1,000 Bing requests for the built-in tool, at the list prices these results were measured with ([Web IQ pricing](https://learn.microsoft.com/en-us/web-iq/resources/pricing), [Grounding with Bing pricing](https://www.microsoft.com/en-us/bing/apis)). Since 17 November 2026 the built-in tool runs on Web IQ when you add it directly to a request or a prompt agent ([Web search tool](https://learn.microsoft.com/en-us/azure/foundry/agents/how-to/tools/web-search)), so its price per search may have fallen; check your bill ([01](docs/01-why-web-search-in-batch-costs-more.md#how-the-built-in-web-search-tool-is-billed)). Search count and input size, below, don't depend on the price.
 - **Search count.** It fell from 2.5-2.9 billed requests to 1.13 (lean) or 1.26 (full) planned calls per record, because shared facts are searched once per job.
 - **Input size.** It's less than half, because trimmed evidence replaces the model's own search loop ([04](docs/04-cost-model.md)).
 
@@ -50,6 +50,8 @@ Each option has its own folder, so you can go straight to the one you want. Each
 | [flex-web-search-and-web-iq/](flex-web-search-and-web-iq/README.md) | Either: web search (option 1's lines) or Web IQ (option 2's) | Flex processing (preview), one synchronous request per line | `flex_job.py` | Results in seconds per record, or a model without a Global Batch SKU, when a preview tier without an SLA is acceptable |
 
 The code every option uses (the job runner, the Batch API, costs and live prices, settings, the sample workload) is in [shared/](shared/); checking answers and sharing results are in [evaluation/](evaluation/). Nothing needs installing beyond [requirements.txt](requirements.txt): each script finds `shared/` on its own.
+
+**One request per record, with the web search tool.** If you send each record as its own request instead, to Flex processing or from your own service, [agent-web-search-one-request/](agent-web-search-one-request/README.md) shows that a line with the built-in `web_search` tool is still one request: the model's searches happen inside it, and one response comes back, with no tool calls for your code to run. It sends your batch lines unchanged apart from the changes it prints, directly or through a Microsoft Foundry prompt agent with the tool attached directly (Web IQ behind it), and measures the searches inside each response: up to 13 `web_search_call` items in one request on the sample ([results](results/2026-11-20-agent-web-search/README.md)).
 
 ## When to use it
 
@@ -120,6 +122,7 @@ Read in this order the first time:
 | [option-1-bounded-web-search/](option-1-bounded-web-search/README.md) | Option 1: [README](option-1-bounded-web-search/README.md), [WALKTHROUGH](option-1-bounded-web-search/WALKTHROUGH.md), `bounded_web_search.py` (the command) and `web_search_lines.py` (one line with the capped web search tool) |
 | [option-2-two-stage-web-iq/](option-2-two-stage-web-iq/README.md) | Option 2: [README](option-2-two-stage-web-iq/README.md), [WALKTHROUGH](option-2-two-stage-web-iq/WALKTHROUGH.md), `two_stage.py` (the command), `search_plan.py` (the search plan), `webiq.py` (stage 1: Web IQ through a Foundry toolbox or REST, rate-limited, retried, resumable), `two_stage_lines.py` (one no-tools line with its evidence) and `toolbox.py` (creates, tests and deletes the Foundry toolbox) |
 | [flex-web-search-and-web-iq/](flex-web-search-and-web-iq/README.md) | Flex: [README](flex-web-search-and-web-iq/README.md), [WALKTHROUGH](flex-web-search-and-web-iq/WALKTHROUGH.md), `flex_job.py` (the command) and `flex.py` (each line as a synchronous Flex request, paced, retried and recorded in an attempt ledger, resumable) |
+| [agent-web-search-one-request/](agent-web-search-one-request/README.md) | One request per line: [README](agent-web-search-one-request/README.md), [WALKTHROUGH](agent-web-search-one-request/WALKTHROUGH.md), `agent_web_search.py` (the command), `one_request.py` (send one request and measure the searches inside it) and `prompt_agent.py` (the same line through a prompt agent with `web_search` attached directly) |
 | [shared/pipeline.py](shared/pipeline.py) | The job runner behind every option's `plan`, `search`, `build` and `run`: automatic rounds, held records and exit codes |
 | [shared/batch.py](shared/batch.py) | Split, upload, create (waiting while the quota is full), wait, collect usage, sort lines for another round, delete files |
 | [shared/exits.py](shared/exits.py) | The exit codes every `run` ends with |
@@ -132,6 +135,7 @@ Read in this order the first time:
 | [evaluation/report.py](evaluation/report.py) | Copies shareable run files; refuses endpoints, paths and job IDs; removes personal-page URLs |
 | [samples/brand-owner/](samples/brand-owner/) | 23 records and their labels with sources |
 | [results/2026-10-31/](results/2026-10-31/) | The six measured runs and their evaluation |
+| [results/2026-11-20-agent-web-search/](results/2026-11-20-agent-web-search/README.md) | One request per line: the counts from each run of `agent_web_search.py`, and one Global Batch job of the same lines |
 | [diagrams/](diagrams/) | Architecture and flow diagrams (draw.io source and PNG) |
 | [tests/](tests/) | Offline unit tests, priced with the 31 October 2026 table in [tests/fixtures/](tests/fixtures/) |
 | [.github/workflows/tests.yml](.github/workflows/tests.yml) | Runs the offline tests and each option's `plan` on Python 3.10 and 3.12 for every push and pull request, then checks that every price meter in settings.toml still resolves (a warning, not a failure) |

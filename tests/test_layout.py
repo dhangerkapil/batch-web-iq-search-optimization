@@ -7,12 +7,14 @@ import sys
 import pytest
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
-OPTIONS = ("option-1-bounded-web-search", "option-2-two-stage-web-iq", "flex-web-search-and-web-iq")
+# The option folders, and the one-request sample, which is laid out the same way.
+OPTIONS = ("option-1-bounded-web-search", "option-2-two-stage-web-iq", "flex-web-search-and-web-iq", "agent-web-search-one-request")
 FOLDERS = ("shared", *OPTIONS, "evaluation")
 ENTRY_SCRIPTS = {
     "option-1-bounded-web-search": ("bounded_web_search.py",),
     "option-2-two-stage-web-iq": ("two_stage.py", "toolbox.py"),
     "flex-web-search-and-web-iq": ("flex_job.py",),
+    "agent-web-search-one-request": ("agent_web_search.py",),
     "shared": ("analyze.py", "prices.py"),
     "evaluation": ("evaluate.py", "report.py"),
 }

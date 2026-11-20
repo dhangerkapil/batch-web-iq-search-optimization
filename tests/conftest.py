@@ -7,7 +7,8 @@ import sys
 import pytest
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
-FOLDERS = ("shared", "option-1-bounded-web-search", "option-2-two-stage-web-iq", "flex-web-search-and-web-iq", "evaluation")
+FOLDERS = ("shared", "option-1-bounded-web-search", "option-2-two-stage-web-iq", "flex-web-search-and-web-iq",
+           "agent-web-search-one-request", "evaluation")
 for folder in FOLDERS:
     sys.path.insert(0, str(REPO / folder))
 

@@ -25,6 +25,8 @@ kept-lines.jsonl
 kept-lines.jsonl.tmp
 flex-attempts.jsonl
 held-records.jsonl
+# The one-request sample's whole responses (web search content); its metrics.jsonl and summary.md hold counts only.
+responses.jsonl
 
 # OS and editor
 .DS_Store

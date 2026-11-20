@@ -25,6 +25,8 @@ jobs:
       - run: python option-1-bounded-web-search/bounded_web_search.py plan samples/brand-owner/records.jsonl
       - run: python option-2-two-stage-web-iq/two_stage.py plan samples/brand-owner/records.jsonl --plan lean --prices tests/fixtures/prices-2026-10-31.json
       - run: python flex-web-search-and-web-iq/flex_job.py plan samples/brand-owner/records.jsonl --design two-stage --price-model gpt-6-sol --prices tests/fixtures/prices-2026-10-31.json
+      - run: python agent-web-search-one-request/agent_web_search.py plan samples/brand-owner/records.jsonl --first 2
+      - run: python agent-web-search-one-request/agent_web_search.py plan samples/brand-owner/records.jsonl --first 2 --mode agent --design bounded-web-search
       # Reads every meter named in settings.toml from the public Azure Retail Prices API (no sign-in, no secrets).
       # A failure here means a meter was renamed or the API was unreachable; it warns without failing the build.
       - run: python shared/prices.py
